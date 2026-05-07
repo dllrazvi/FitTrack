@@ -1,0 +1,71 @@
+import type {FoodItem} from '../backend/models/Nutrition';
+
+const now = new Date();
+
+function food(
+  id: string,
+  name: string,
+  category: FoodItem['category'],
+  calories: number,
+  protein: number,
+  carbohydrates: number,
+  fat: number,
+): FoodItem {
+  return {
+    id: `seed:${id}`,
+    name,
+    brand: 'FitTrack Generic',
+    nutrition: {
+      calories,
+      protein,
+      carbohydrates,
+      fat,
+      fiber: 0,
+      sugar: 0,
+      sodium: 0,
+      cholesterol: 0,
+    },
+    category,
+    isVegetarian: false,
+    isVegan: false,
+    isGlutenFree: true,
+    servingSizes: [{name: '100 g', weight: 100}],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export const DEFAULT_FOOD_CATALOG: FoodItem[] = [
+  food('chicken-breast', 'Chicken breast (cooked)', 'protein', 165, 31, 0, 3.6),
+  food('turkey-breast', 'Turkey breast', 'protein', 135, 29, 0, 1.6),
+  food('lean-beef', 'Lean beef', 'protein', 217, 26, 0, 12),
+  food('salmon', 'Salmon', 'protein', 208, 25, 0, 12),
+  food('tuna', 'Tuna in water', 'protein', 132, 29, 0, 1),
+  food('egg-whole', 'Egg whole', 'protein', 155, 13, 1.1, 11),
+  food('egg-white', 'Egg white', 'protein', 52, 11, 0.7, 0.2),
+  food('tofu', 'Tofu', 'protein', 76, 8, 1.9, 4.8),
+  food('tempeh', 'Tempeh', 'protein', 193, 20, 9, 11),
+  food('greek-yogurt', 'Greek yogurt 2%', 'dairy', 73, 9.9, 3.9, 1.9),
+  food('cottage-cheese', 'Cottage cheese', 'dairy', 98, 11, 3.4, 4.3),
+  food('milk-1p5', 'Milk 1.5%', 'dairy', 47, 3.4, 4.8, 1.5),
+  food('oats', 'Oats (dry)', 'grains', 389, 16.9, 66.3, 6.9),
+  food('rice-white-cooked', 'Rice white (cooked)', 'grains', 130, 2.4, 28.2, 0.3),
+  food('rice-brown-cooked', 'Rice brown (cooked)', 'grains', 111, 2.6, 23, 0.9),
+  food('pasta-cooked', 'Pasta (cooked)', 'grains', 157, 5.8, 30.9, 0.9),
+  food('bread-wholewheat', 'Whole wheat bread', 'grains', 247, 13, 41, 4.2),
+  food('potato-boiled', 'Potato (boiled)', 'vegetables', 87, 1.9, 20.1, 0.1),
+  food('sweet-potato', 'Sweet potato', 'vegetables', 86, 1.6, 20.1, 0.1),
+  food('broccoli', 'Broccoli', 'vegetables', 34, 2.8, 7, 0.4),
+  food('spinach', 'Spinach', 'vegetables', 23, 2.9, 3.6, 0.4),
+  food('tomato', 'Tomato', 'vegetables', 18, 0.9, 3.9, 0.2),
+  food('banana', 'Banana', 'fruits', 89, 1.1, 22.8, 0.3),
+  food('apple', 'Apple', 'fruits', 52, 0.3, 13.8, 0.2),
+  food('orange', 'Orange', 'fruits', 47, 0.9, 11.8, 0.1),
+  food('avocado', 'Avocado', 'fruits', 160, 2, 9, 15),
+  food('olive-oil', 'Olive oil', 'fats', 884, 0, 0, 100),
+  food('peanut-butter', 'Peanut butter', 'fats', 588, 25, 20, 50),
+  food('almonds', 'Almonds', 'snacks', 579, 21, 22, 50),
+  food('walnuts', 'Walnuts', 'snacks', 654, 15, 14, 65),
+  food('black-beans', 'Black beans (cooked)', 'protein', 132, 8.9, 23.7, 0.5),
+  food('chickpeas', 'Chickpeas (cooked)', 'protein', 164, 8.9, 27.4, 2.6),
+];
