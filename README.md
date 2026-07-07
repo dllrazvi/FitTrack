@@ -14,7 +14,7 @@ This repository contains the **full source code and thesis materials** for **Fit
 FitTrack brings together **workout planning**, **nutrition tracking**, **meal planning**, and **community-oriented motivation** in one coherent, authenticated experience. The app is built with **React Native** and **TypeScript**, uses **Firebase** for authentication and cloud data, and integrates **public fitness and nutrition REST APIs** (with offline/default fallbacks) so the product remains usable without proprietary datasets.
 
 <p align="center">
-  <img src="FitTrack/android/screenshots/LoginDashboard.png" alt="Login and dashboard entry" width="45%" />
+  <img src="FitTrack/android/screenshots/DashboardPrimary.png" alt="One single app" width="45%" />
 </p>
 
 <p align="center"><em>Authentication and main dashboard hub</em></p>
@@ -279,5 +279,3 @@ Individual thesis project. I owned:
 Bachelor's Thesis, Computer Science — English Program  
 Babeș-Bolyai University (UBB), Romania  
 Supervisor: **Assoc. Prof. PhD. Zsigmond Imre**
-
-**Repository:** [https://github.com/dllrazvi/FitTrack](https://github.com/dllrazvi/FitTrack)
