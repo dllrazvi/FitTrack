@@ -5,8 +5,6 @@
 Bachelor's Thesis · Babeș-Bolyai University (UBB), Faculty of Mathematics and Computer Science  
 **Author:** Bolchis Răzvan · **Supervisor:** Assoc. Prof. PhD. Zsigmond Imre
 
----
-
 ## Overview
 
 This repository contains the **full source code and thesis materials** for **FitTrack**, a **cross-platform mobile application** developed as my **Bachelor's thesis** at **Babeș-Bolyai University (UBB), Romania**.
@@ -17,7 +15,7 @@ FitTrack brings together **workout planning**, **nutrition tracking**, **meal pl
   <img src="FitTrack/android/screenshots/DashboardPrimary.png" alt="One single app" width="45%" />
 </p>
 
-<p align="center"><em>Authentication and main dashboard hub</em></p>
+<p align="center"><em>One single app</em></p>
 
 ---
 
