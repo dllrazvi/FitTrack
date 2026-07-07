@@ -7,15 +7,12 @@ Bachelor's Thesis · Babeș-Bolyai University (UBB), Faculty of Mathematics and 
 **Author:** Răzvan Bolchis  
 **Supervisor:** Assoc. Prof. PhD. Zsigmond Imre
 
----
 
 ## Overview
 
 FitTrack is a cross-platform mobile application developed as my Bachelor's thesis, designed to bring together workout planning, nutrition tracking, meal planning, and community engagement within a single mobile platform.
 
 Built with **React Native** and **TypeScript**, the application uses **Firebase** for authentication and cloud synchronization while integrating public REST APIs to provide exercise and nutrition data. Instead of treating fitness, nutrition, and social interaction as separate applications, FitTrack combines them into a unified experience where all modules share the same user profile and cloud-backed data model.
-
----
 
 ## Key Highlights
 
