@@ -1,7 +1,7 @@
 import { MealPlan, UserMealPlan, MealPlanMeal } from '../backend/models/MealPlan';
 
-// Mock meal plans database (macros normalized to targets after definition)
-const rawMockMealPlans: MealPlan[] = [
+// Built-in meal plan templates
+const rawBuiltInMealPlans: MealPlan[] = [
   {
     id: '1',
     name: 'Classic Fat-Loss Day',
@@ -584,7 +584,7 @@ const normalizePlanToTargetCalories = (plan: MealPlan): MealPlan => {
   };
 };
 
-const mockMealPlans = rawMockMealPlans.map(normalizePlanToTargetCalories);
+const builtInMealPlans = rawBuiltInMealPlans.map(normalizePlanToTargetCalories);
 
 type MealLabelPatch = Partial<Pick<MealPlanMeal, 'name' | 'description'>>;
 
@@ -890,9 +890,9 @@ const createVariant = (base: MealPlan, variant: MealPlanVariantInput): MealPlan 
   };
 };
 
-const seedBaseWeightLoss = mockMealPlans.find(p => p.id === '1');
-const seedBaseMuscle = mockMealPlans.find(p => p.id === '2');
-const seedBaseVegan = mockMealPlans.find(p => p.id === '3');
+const seedBaseWeightLoss = builtInMealPlans.find(p => p.id === '1');
+const seedBaseMuscle = builtInMealPlans.find(p => p.id === '2');
+const seedBaseVegan = builtInMealPlans.find(p => p.id === '3');
 
 const seededVariants: MealPlan[] =
   seedBaseWeightLoss && seedBaseMuscle && seedBaseVegan
@@ -1020,7 +1020,7 @@ const seededVariants: MealPlan[] =
       ]
     : [];
 
-const allMockMealPlans: MealPlan[] = [...mockMealPlans, ...seededVariants];
+const mealPlanCatalog: MealPlan[] = [...builtInMealPlans, ...seededVariants];
 
 export class MealPlanService {
   /**
@@ -1029,7 +1029,7 @@ export class MealPlanService {
   static async getAllMealPlans(): Promise<MealPlan[]> {
     return new Promise((resolve) => {
       setTimeout(() => {
-        resolve(allMockMealPlans);
+        resolve(mealPlanCatalog);
       }, 500); // Simulate API delay
     });
   }
@@ -1040,7 +1040,7 @@ export class MealPlanService {
   static async getMealPlansByCategory(category: MealPlan['category']): Promise<MealPlan[]> {
     return new Promise((resolve) => {
       setTimeout(() => {
-        const filtered = allMockMealPlans.filter(plan => plan.category === category);
+        const filtered = mealPlanCatalog.filter(plan => plan.category === category);
         resolve(filtered);
       }, 300);
     });
@@ -1052,7 +1052,7 @@ export class MealPlanService {
   static async getMealPlanById(id: string): Promise<MealPlan | null> {
     return new Promise((resolve) => {
       setTimeout(() => {
-        const plan = allMockMealPlans.find(p => p.id === id);
+        const plan = mealPlanCatalog.find(p => p.id === id);
         resolve(plan || null);
       }, 200);
     });
@@ -1097,7 +1097,6 @@ export class MealPlanService {
    * Get user's active meal plans
    */
   static async getUserMealPlans(_userId: string): Promise<UserMealPlan[]> {
-    // Mock implementation - in real app, this would fetch from database
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve([]);
@@ -1111,7 +1110,6 @@ export class MealPlanService {
   static async completeMealPlanDay(_userMealPlanId: string, _day: number): Promise<void> {
     return new Promise((resolve) => {
       setTimeout(() => {
-        // Mock implementation - in real app, this would update database
         resolve();
       }, 200);
     });
@@ -1127,7 +1125,7 @@ export class MealPlanService {
   ): Promise<MealPlan[]> {
     return new Promise((resolve) => {
       setTimeout(() => {
-        let recommendations = allMockMealPlans.filter(plan =>
+        let recommendations = mealPlanCatalog.filter(plan =>
           Math.abs(plan.targetCalories - targetCalories) <= 200,
         );
 

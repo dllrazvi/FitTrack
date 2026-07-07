@@ -344,11 +344,6 @@ const DashboardScreen = ({navigation}: any) => {
 
   // Update dashboard when nutrition data changes
   useEffect(() => {
-    console.log(
-      '🔄 Dashboard updating with new nutrition data:',
-      dailyTotals.calories,
-      'kcal',
-    );
     setDailyStats(prevStats => ({
       ...prevStats,
       caloriesConsumed: dailyTotals.calories,
@@ -406,7 +401,7 @@ const DashboardScreen = ({navigation}: any) => {
       if (access.granted) {
         await refreshSteps();
       } else if (!cancelled) {
-        console.log('step access not granted:', access.message);
+        setDailyStats(prev => ({...prev, steps: 0}));
       }
     };
 
@@ -491,8 +486,8 @@ const DashboardScreen = ({navigation}: any) => {
             goals: d?.goals ? {...userProfile.goals, ...d.goals} : userProfile.goals,
           };
         }
-      } catch (e) {
-        console.log('dashboard user firestore fallback', e);
+      } catch {
+        // Keep bundled default profile when Firestore is unavailable.
       }
 
       setUser(userProfile);

@@ -354,16 +354,12 @@ const ProfileScreen = ({navigation}: any) => {
               doc(firebaseDb, 'users', currentAuthUser.uid),
               userProfile as unknown as Record<string, unknown>,
             );
-          } catch (saveError) {
-            console.log(
-              'Could not save to Firebase, using local data only:',
-              saveError,
-            );
+          } catch {
+            // Firestore write failed; local profile still usable.
           }
         }
-      } catch (firebaseError) {
-        console.log('Firebase unavailable, using local data:', firebaseError);
-        // Use default profile if Firebase is unavailable
+      } catch {
+        // Firestore unavailable; fall back to default profile fields.
       }
 
       const activeMealPlanId = await AsyncStorage.getItem(ACTIVE_MEAL_PLAN_KEY);
@@ -402,20 +398,13 @@ const ProfileScreen = ({navigation}: any) => {
       });
     } catch (error) {
       console.error('Error loading user data:', error);
-      // Don't show error alert, just use default data
-      console.log('Using default user profile due to error');
     }
   };
 
   const handleSave = async () => {
-    console.log('handleSave called');
     if (!user) {
-      console.log('No user found, returning');
       return;
     }
-
-    console.log('Current editData:', editData);
-    console.log('Current user:', user);
 
     const updatedUser = {
       ...user,
@@ -447,10 +436,7 @@ const ProfileScreen = ({navigation}: any) => {
       updatedAt: new Date(),
     };
 
-    console.log('Updated user:', updatedUser);
-
     try {
-      // Try to save to Firebase (but don't fail if it doesn't work)
       const currentAuthUser = firebaseAuth.currentUser;
       if (currentAuthUser) {
         try {
@@ -459,18 +445,13 @@ const ProfileScreen = ({navigation}: any) => {
             goals: updatedUser.goals,
             updatedAt: updatedUser.updatedAt,
           });
-          console.log('Profile saved to Firebase successfully');
-        } catch (firebaseError) {
-          console.log(
-            'Could not save to Firebase, using local data only:',
-            firebaseError,
-          );
+        } catch {
+          // Local state still updated below.
         }
       }
 
       setUser(updatedUser);
       setIsEditing(false);
-      console.log('Profile updated locally and editing mode disabled');
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
       console.error('Error saving profile:', error);
@@ -579,8 +560,8 @@ const ProfileScreen = ({navigation}: any) => {
           failOnCancel: false,
         });
         shared = true;
-      } catch (shareError) {
-        console.log('share fallback - saved locally', shareError);
+      } catch {
+        // Share sheet unavailable; file remains on device.
       }
       Alert.alert(
         'Export ready',
@@ -721,11 +702,7 @@ const ProfileScreen = ({navigation}: any) => {
         <Text style={[styles.title, {color: theme.colors.text}]}>Profile</Text>
         <TouchableOpacity
           style={styles.editButton}
-          onPress={() => {
-            console.log('Edit button pressed, current isEditing:', isEditing);
-            setIsEditing(!isEditing);
-            console.log('isEditing set to:', !isEditing);
-          }}>
+          onPress={() => setIsEditing(!isEditing)}>
           <Text
             style={[styles.editButtonText, {color: theme.colors.primary}]}>
             {isEditing ? 'Cancel' : 'Edit'}

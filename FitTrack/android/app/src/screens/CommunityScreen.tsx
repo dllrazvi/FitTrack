@@ -133,14 +133,12 @@ const CommunityScreen = ({navigation}: any) => {
   const [composeText, setComposeText] = useState('');
   const [composeImageAssets, setComposeImageAssets] = useState<Asset[]>([]);
   const [composeVideoAsset, setComposeVideoAsset] = useState<Asset | null>(null);
-  /** When set, composer publishes a feed post that embeds this challenge card. */
   const [composeChallengeShare, setComposeChallengeShare] =
     useState<UiChallenge | null>(null);
   const [posting, setPosting] = useState(false);
 
   const mainScrollRef = useRef<ScrollView>(null);
   const challengeCardLayoutsRef = useRef<Record<string, number>>({});
-  /** Highlights a challenge row after opening it from the feed (cleared after a few seconds). */
   const [focusedChallengeId, setFocusedChallengeId] = useState<string | null>(
     null,
   );
@@ -368,9 +366,7 @@ const CommunityScreen = ({navigation}: any) => {
     }
     try {
       await syncAllJoinedChallengesProgress([challengeId]);
-    } catch (_) {
-      /* syncChallengeParticipantProgress retries internally */
-    }
+    } catch (_) {}
   };
 
   const resetCreateChallengeForm = () => {
@@ -412,11 +408,9 @@ const CommunityScreen = ({navigation}: any) => {
         selectedExerciseIds:
           ccMetric === 'weekly_exercises' ? ccSelectedExerciseIds : [],
       });
-      // Creator should participate by default so completion can grant badge.
       try {
         await joinCommunityChallenge(challengeId);
       } catch (_) {
-        // If client timed out but server may have committed, verify joined state.
         const joined = await hasJoinedCommunityChallenge(challengeId);
         if (!joined) {
           throw new Error(

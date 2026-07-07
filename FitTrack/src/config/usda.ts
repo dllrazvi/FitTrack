@@ -5,7 +5,6 @@ type UsdaLocalConfig = {
 let local: UsdaLocalConfig = {};
 
 try {
-  // Kept in a gitignored local file.
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   local = require('./usda.local') as UsdaLocalConfig;
 } catch {

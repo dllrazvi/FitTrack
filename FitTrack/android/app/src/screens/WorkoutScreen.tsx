@@ -11,22 +11,30 @@ import {
   Animated,
   Image,
 } from 'react-native';
+import Video from 'react-native-video';
 import Svg, {ClipPath, Defs, Ellipse, G, Path, Rect} from 'react-native-svg';
 import {useWorkout} from '../../../../src/contexts/WorkoutContext';
 import {getAuth, onAuthStateChanged} from '@react-native-firebase/auth';
 import {
   fetchMuscleWikiExercisesForCatalog,
+  fetchMuscleWikiExerciseDetail,
   fetchMuscleWikiRoutinesForCatalog,
+  fetchCatalogExerciseDetail,
   fetchWgerExercisesForCatalog,
+  getOfficialMuscleFilterName,
   hasMuscleWikiApiKey,
+  hasPaidMuscleWikiApiKey,
 } from '../../../../src/services/wgerExerciseCatalog';
+import {MUSCLEWIKI_API_KEY} from '../../../../src/config/muscleWiki';
 import {
   subscribeUserRoutines,
   createUserRoutine,
+  addExerciseToUserRoutine,
   deleteUserRoutine,
   loadWeeklyPlanner,
   saveWeeklyPlanner,
   type FirestoreRoutine,
+  type RoutineExerciseEntry,
 } from '../../../../src/services/userWorkoutFirestore';
 import {resolveStackBack} from './stackBackHelper';
 import {useScreenTopInset} from './useScreenTopInset';
@@ -81,6 +89,7 @@ type ScreenWorkoutRoutine = {
   name: string;
   description: string;
   exercises: string[];
+  routineExercises: RoutineExerciseEntry[];
   duration: number;
   difficulty: RoutineDifficulty;
   caloriesBurned: number;
@@ -90,6 +99,40 @@ type ScreenWorkoutRoutine = {
   updatedAt: Date;
 };
 
+function buildRoutineExerciseEntry(
+  exercise: ScreenExercise,
+  order: number,
+): RoutineExerciseEntry {
+  return {
+    exerciseId: exercise.id,
+    exerciseName: exercise.name,
+    sets: exercise.sets,
+    reps: exercise.reps,
+    restTime: exercise.restTime,
+    order,
+  };
+}
+
+function routineEntryToScreenExercise(entry: RoutineExerciseEntry): ScreenExercise {
+  return {
+    id: entry.exerciseId,
+    name: entry.exerciseName,
+    description: '',
+    muscleGroups: [],
+    equipment: 'mixed',
+    difficulty: 'beginner',
+    instructions: [],
+    sets: entry.sets,
+    reps: entry.reps,
+    restTime: entry.restTime,
+    caloriesPerMinute: 8,
+    imageUrl: null,
+    videoUrl: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
 function normalizeExerciseForCatalog(
   ex: Partial<ScreenExercise> & {id?: string; name?: string},
   idx: number,
@@ -98,7 +141,10 @@ function normalizeExerciseForCatalog(
     typeof ex.id === 'string' && ex.id.trim().length > 0
       ? ex.id.trim()
       : `fetched-${idx}`;
-  const normalizedId = rawId.startsWith('wger-') ? rawId : `wger-${rawId}`;
+  const normalizedId =
+    rawId.startsWith('wger-') || rawId.startsWith('mw-')
+      ? rawId
+      : `wger-${rawId}`;
   return {
     id: normalizedId,
     name: ex.name || 'Exercise',
@@ -372,9 +418,56 @@ const MUSCLE_GROUP_OPTIONS: MuscleGroupOption[] = [
   {key: 'hamstrings', label: 'Hamstrings', emoji: '🦵', keywords: ['hamstring', 'romanian deadlift', 'rdl', 'leg curl'], bodyView: 'back'},
   {key: 'quadriceps', label: 'Quadriceps', emoji: '🦵', keywords: ['quadricep', 'quad', 'leg extension', 'squat', 'step-up'], bodyView: 'front'},
   {key: 'calves', label: 'Calves', emoji: '🦵', keywords: ['calf', 'calves'], bodyView: 'both'},
-  {key: 'core', label: 'Core/Abs', emoji: '🔥', keywords: ['core', 'ab', 'abs', 'abdominal', 'plank', 'crunch'], bodyView: 'front'},
+  {key: 'core', label: 'Core/Abs', emoji: '🔥', keywords: ['core', 'abs', 'abdominal', 'plank', 'crunch'], bodyView: 'front'},
   {key: 'obliques', label: 'Obliques', emoji: '🔥', keywords: ['oblique', 'side abs', 'core'], bodyView: 'front'},
 ];
+
+const CATALOG_LIST_LIMIT = 24;
+
+const CATALOG_MUSCLE_ALIASES: Record<string, string[]> = {
+  chest: ['chest'],
+  lats: ['lats'],
+  glutes: ['glutes'],
+  lowerback: ['lower back'],
+  traps: ['traps'],
+  trapsmiddle: ['mid back', 'traps'],
+  shoulders: ['shoulders'],
+  biceps: ['biceps'],
+  triceps: ['triceps'],
+  forearms: ['forearms'],
+  hamstrings: ['hamstrings'],
+  quadriceps: ['quads', 'quadriceps'],
+  calves: ['calves'],
+  core: ['abdominals', 'core'],
+  obliques: ['obliques'],
+};
+
+
+const getExerciseVideoSource = (videoUrl: string | null | undefined) => {
+  if (!videoUrl) {
+    return null;
+  }
+  if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
+    return null;
+  }
+  const headers: Record<string, string> = {};
+  if (MUSCLEWIKI_API_KEY && videoUrl.includes('musclewiki')) {
+    headers['X-API-Key'] = MUSCLEWIKI_API_KEY;
+    headers.Referer = 'https://musclewiki.com/';
+  }
+  return {
+    uri: videoUrl,
+    headers: Object.keys(headers).length ? headers : undefined,
+  };
+};
+
+const summarizeDescription = (text: string, maxLength = 160) => {
+  const clean = text.trim();
+  if (clean.length <= maxLength) {
+    return clean;
+  }
+  return `${clean.slice(0, maxLength).trim()}...`;
+};
 
 type BodyZone = {
   key: string;
@@ -521,192 +614,63 @@ const BODY_ZONE_LAYOUT: Record<
   ],
 };
 
-// Mock exercises database
-const mockExercises: ScreenExercise[] = [
-  {
-    id: '1',
-    name: 'Push-ups',
-    description: 'Classic bodyweight exercise for chest and triceps',
-    muscleGroups: ['chest', 'triceps', 'shoulders'],
-    equipment: 'bodyweight',
-    difficulty: 'beginner',
-    instructions: [
-      'Start in a plank position with hands shoulder-width apart',
-      'Lower your body until chest nearly touches the ground',
-      'Push back up to starting position',
-      'Keep your core tight throughout the movement',
-    ],
-    sets: 3,
-    reps: 10,
-    restTime: 60,
-    caloriesPerMinute: 8,
-    imageUrl: null,
-    videoUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '2',
-    name: 'Squats',
-    description: 'Fundamental lower body exercise',
-    muscleGroups: ['legs', 'glutes', 'core'],
-    equipment: 'bodyweight',
-    difficulty: 'beginner',
-    instructions: [
-      'Stand with feet shoulder-width apart',
-      'Lower your body as if sitting back into a chair',
-      'Keep your chest up and knees behind toes',
-      'Return to standing position',
-    ],
-    sets: 3,
-    reps: 15,
-    restTime: 90,
-    caloriesPerMinute: 10,
-    imageUrl: null,
-    videoUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '3',
-    name: 'Pull-ups',
-    description: 'Upper body strength exercise',
-    muscleGroups: ['back', 'biceps', 'shoulders'],
-    equipment: 'pull-up-bar',
-    difficulty: 'intermediate',
-    instructions: [
-      'Grab the pull-up bar with palms facing away',
-      'Hang with arms fully extended',
-      'Pull your body up until chin clears the bar',
-      'Lower back down with control',
-    ],
-    sets: 3,
-    reps: 8,
-    restTime: 120,
-    caloriesPerMinute: 12,
-    imageUrl: null,
-    videoUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '4',
-    name: 'Planks',
-    description: 'Core stability exercise',
-    muscleGroups: ['core', 'shoulders'],
-    equipment: 'bodyweight',
-    difficulty: 'beginner',
-    instructions: [
-      'Start in a forearm plank position',
-      'Keep your body in a straight line',
-      'Engage your core muscles',
-      'Hold the position for the specified time',
-    ],
-    sets: 3,
-    reps: 30, // seconds
-    restTime: 60,
-    caloriesPerMinute: 4,
-    imageUrl: null,
-    videoUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '5',
-    name: 'Lunges',
-    description: 'Unilateral leg exercise',
-    muscleGroups: ['legs', 'glutes', 'core'],
-    equipment: 'bodyweight',
-    difficulty: 'beginner',
-    instructions: [
-      'Step forward with one leg',
-      'Lower your body until both knees are bent',
-      'Push back to starting position',
-      'Alternate legs',
-    ],
-    sets: 3,
-    reps: 12,
-    restTime: 90,
-    caloriesPerMinute: 8,
-    imageUrl: null,
-    videoUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '6',
-    name: 'Bicep Curls',
-    description: 'Isolation exercise for biceps',
-    muscleGroups: ['biceps'],
-    equipment: 'dumbbells',
-    difficulty: 'beginner',
-    instructions: [
-      'Hold dumbbells at your sides',
-      'Curl the weights up to your shoulders',
-      'Lower back down with control',
-      'Keep your elbows at your sides',
-    ],
-    sets: 3,
-    reps: 12,
-    restTime: 60,
-    caloriesPerMinute: 6,
-    imageUrl: null,
-    videoUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
 
-// Mock workout routines
-const mockWorkoutRoutines: ScreenWorkoutRoutine[] = [
-  {
-    id: '1',
-    name: 'Full Body Beginner',
-    description: 'Complete workout for beginners',
-    exercises: ['1', '2', '4', '6'],
-    duration: 45,
-    difficulty: 'beginner',
-    caloriesBurned: 300,
-    isPublic: true,
-    createdBy: 'system',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '2',
-    name: 'Upper Body Focus',
-    description: 'Target chest, back, and arms',
-    exercises: ['1', '3', '6'],
-    duration: 30,
-    difficulty: 'intermediate',
-    caloriesBurned: 250,
-    isPublic: true,
-    createdBy: 'system',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '3',
-    name: 'Lower Body Power',
-    description: 'Build strong legs and glutes',
-    exercises: ['2', '5'],
-    duration: 25,
-    difficulty: 'beginner',
-    caloriesBurned: 200,
-    isPublic: true,
-    createdBy: 'system',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
+function backfillRoutineExercises(
+  exerciseIds: string[],
+  routineExercises: RoutineExerciseEntry[],
+  description: string,
+): RoutineExerciseEntry[] {
+  if (!exerciseIds.length) {
+    return routineExercises;
+  }
+  const byId = new Map(
+    routineExercises.map(entry => [entry.exerciseId, entry]),
+  );
+  const descNames = description
+    .split('·')
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  return exerciseIds.map((exerciseId, index) => {
+    const existing = byId.get(exerciseId);
+    if (existing) {
+      return {...existing, order: index};
+    }
+    return {
+      exerciseId,
+      exerciseName: descNames[index] || `Exercise ${index + 1}`,
+      sets: 3,
+      reps: 12,
+      restTime: 60,
+      order: index,
+    };
+  });
+}
 
 function routineFromFirestore(r: FirestoreRoutine): ScreenWorkoutRoutine {
   const mappedExercises = Array.isArray(r.exerciseIds) ? r.exerciseIds : [];
+  const storedExercises = Array.isArray(r.routineExercises) ? r.routineExercises : [];
+  const rawDescription =
+    r.description && r.description !== 'Custom personal routine'
+      ? r.description
+      : '';
+  const routineExercises = backfillRoutineExercises(
+    mappedExercises,
+    storedExercises,
+    rawDescription,
+  );
+  const exerciseNames = routineExercises.map(entry => entry.exerciseName).filter(Boolean);
+  const description =
+    rawDescription ||
+    (exerciseNames.length > 0
+      ? exerciseNames.slice(0, 4).join(' · ')
+      : 'Custom personal routine');
   return {
     id: r.id,
     name: r.name,
-    description: r.description,
+    description,
     exercises: mappedExercises,
+    routineExercises,
     duration: r.duration,
     difficulty:
       r.difficulty === 'beginner' ||
@@ -722,6 +686,133 @@ function routineFromFirestore(r: FirestoreRoutine): ScreenWorkoutRoutine {
   };
 }
 
+type PresetRoutineTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  duration: number;
+  difficulty: RoutineDifficulty;
+  caloriesBurned: number;
+  pickKeywords: string[][];
+};
+
+const PRESET_ROUTINE_TEMPLATES: PresetRoutineTemplate[] = [
+  {
+    id: 'preset-full-body',
+    name: 'Full Body Beginner',
+    description: 'Balanced session covering push, legs, and core.',
+    duration: 45,
+    difficulty: 'beginner',
+    caloriesBurned: 300,
+    pickKeywords: [['chest', 'push'], ['squat', 'leg', 'quad'], ['core', 'plank', 'ab']],
+  },
+  {
+    id: 'preset-upper',
+    name: 'Upper Body Focus',
+    description: 'Chest, back, and arm work in one flow.',
+    duration: 30,
+    difficulty: 'intermediate',
+    caloriesBurned: 250,
+    pickKeywords: [['chest', 'push'], ['back', 'pull', 'lat'], ['bicep', 'tricep', 'curl']],
+  },
+  {
+    id: 'preset-lower',
+    name: 'Lower Body Power',
+    description: 'Legs and glutes with compound-friendly picks.',
+    duration: 25,
+    difficulty: 'beginner',
+    caloriesBurned: 200,
+    pickKeywords: [['squat', 'leg', 'quad'], ['glute', 'hip'], ['lunge', 'hamstring']],
+  },
+];
+
+function pickCatalogExercise(
+  catalog: ScreenExercise[],
+  keywords: string[],
+  used: Set<string>,
+): ScreenExercise | null {
+  for (const ex of catalog) {
+    if (used.has(ex.id)) {
+      continue;
+    }
+    const hay = `${ex.name} ${ex.muscleGroups.join(' ')} ${ex.description}`.toLowerCase();
+    if (keywords.some(k => hay.includes(k.toLowerCase()))) {
+      return ex;
+    }
+  }
+  return null;
+}
+
+function buildFallbackPresetRoutines(
+  catalog: ScreenExercise[],
+): ScreenWorkoutRoutine[] {
+  if (catalog.length < 2) {
+    return [];
+  }
+
+  const used = new Set<string>();
+  const routines: ScreenWorkoutRoutine[] = [];
+
+  for (const template of PRESET_ROUTINE_TEMPLATES) {
+    const routineExercises: RoutineExerciseEntry[] = [];
+    const exercises: string[] = [];
+
+    template.pickKeywords.forEach(keywords => {
+      const match = pickCatalogExercise(catalog, keywords, used);
+      if (!match) {
+        return;
+      }
+      used.add(match.id);
+      exercises.push(match.id);
+      routineExercises.push(
+        buildRoutineExerciseEntry(match, routineExercises.length),
+      );
+    });
+
+    if (exercises.length >= 2) {
+      routines.push({
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        exercises,
+        routineExercises,
+        duration: template.duration,
+        difficulty: template.difficulty,
+        caloriesBurned: template.caloriesBurned,
+        isPublic: true,
+        createdBy: 'system',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
+  }
+
+  if (routines.length > 0) {
+    return routines;
+  }
+
+  const starter = catalog.slice(0, Math.min(4, catalog.length));
+  const routineExercises = starter.map((ex, index) =>
+    buildRoutineExerciseEntry(ex, index),
+  );
+  return [
+    {
+      id: 'preset-starter',
+      name: 'Starter Routine',
+      description: 'Built from the loaded exercise catalog.',
+      exercises: starter.map(ex => ex.id),
+      routineExercises,
+      duration: 30,
+      difficulty: 'beginner',
+      caloriesBurned: 200,
+      isPublic: true,
+      createdBy: 'system',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ];
+}
+
 const WorkoutScreen = ({navigation}: any) => {
   const {theme, isDark} = useTheme();
   const styles = useMemo(
@@ -735,53 +826,67 @@ const WorkoutScreen = ({navigation}: any) => {
   const {workoutHistory, addWorkoutSession} = useWorkout();
 
   const [exerciseCatalog, setExerciseCatalog] =
-    useState<ScreenExercise[]>(mockExercises);
+    useState<ScreenExercise[]>([]);
   const [presetRoutines, setPresetRoutines] =
-    useState<ScreenWorkoutRoutine[]>(mockWorkoutRoutines);
+    useState<ScreenWorkoutRoutine[]>([]);
+  const [selectedMuscleGroupKey, setSelectedMuscleGroupKey] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        let extra: ScreenExercise[] = [];
-        if (hasMuscleWikiApiKey()) {
-          try {
-            extra = await fetchMuscleWikiExercisesForCatalog(28);
-          } catch (e) {
-            console.warn(
-              'MuscleWiki unavailable, falling back to wger catalog',
-              e,
-            );
-            extra = await fetchWgerExercisesForCatalog(28);
-          }
-        } else {
-          extra = await fetchWgerExercisesForCatalog(28);
-        }
-        if (!cancelled && extra.length) {
-          setExerciseCatalog(prev => {
-            const merged = [
-              ...(extra as unknown[]).map((item, idx) =>
-                normalizeExerciseForCatalog(item as Partial<ScreenExercise>, idx),
-              ),
-              ...prev,
-            ];
-            const byId = new Map<string, ScreenExercise>();
-            for (const ex of merged) {
-              if (!byId.has(ex.id)) {
-                byId.set(ex.id, ex);
-              }
-            }
-            return Array.from(byId.values());
+        if (hasPaidMuscleWikiApiKey()) {
+          const muscleFilter = getOfficialMuscleFilterName(selectedMuscleGroupKey);
+          const extra = await fetchMuscleWikiExercisesForCatalog(CATALOG_LIST_LIMIT, {
+            muscles: muscleFilter ? [muscleFilter] : undefined,
+            includeMedia: false,
           });
+          if (!cancelled) {
+            setExerciseCatalog(extra);
+          }
+          return;
+        }
+
+        if (hasMuscleWikiApiKey()) {
+          const extra = await fetchMuscleWikiExercisesForCatalog(954);
+          if (!cancelled && extra.length) {
+            setExerciseCatalog(extra);
+          }
+          return;
+        }
+
+        const extra = await fetchWgerExercisesForCatalog(28);
+        if (!cancelled && extra.length) {
+          setExerciseCatalog(
+            extra.map((item, idx) =>
+              normalizeExerciseForCatalog(item as Partial<ScreenExercise>, idx),
+            ),
+          );
         }
       } catch (e) {
         console.warn('exerciseCatalogSource', e);
+        if (!cancelled && !hasPaidMuscleWikiApiKey()) {
+          try {
+            const fallback = await fetchWgerExercisesForCatalog(28);
+            if (!cancelled && fallback.length) {
+              setExerciseCatalog(
+                fallback.map((item, idx) =>
+                  normalizeExerciseForCatalog(item as Partial<ScreenExercise>, idx),
+                ),
+              );
+            }
+          } catch (fallbackError) {
+            console.warn('exerciseCatalogFallback', fallbackError);
+          }
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedMuscleGroupKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -795,15 +900,15 @@ const WorkoutScreen = ({navigation}: any) => {
           setPresetRoutines(
             routines.map(r => ({
               ...r,
-              exercises: r.exercises.map(ex => (ex.startsWith('mw-') || ex.startsWith('wger-') ? ex : `mw-${ex}`)),
+              routineExercises: [],
+              exercises: r.exercises.map(ex =>
+                ex.startsWith('mw-') || ex.startsWith('wger-') ? ex : `mw-${ex}`,
+              ),
             })),
           );
         }
       } catch (e) {
-        console.warn(
-          'MuscleWiki routines unavailable, keeping local preset routines',
-          e,
-        );
+        console.warn('MuscleWiki routines unavailable', e);
       }
     })();
 
@@ -812,6 +917,13 @@ const WorkoutScreen = ({navigation}: any) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (presetRoutines.length > 0 || exerciseCatalog.length < 2) {
+      return;
+    }
+    setPresetRoutines(buildFallbackPresetRoutines(exerciseCatalog));
+  }, [exerciseCatalog, presetRoutines.length]);
+
   // Modal states
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<any>(null);
@@ -819,10 +931,8 @@ const WorkoutScreen = ({navigation}: any) => {
   const [selectedExercise, setSelectedExercise] = useState<ScreenExercise | null>(
     null,
   );
+  const [loadingExerciseDetail, setLoadingExerciseDetail] = useState(false);
 
-  const [selectedMuscleGroupKey, setSelectedMuscleGroupKey] = useState<
-    string | null
-  >(null);
   const [bodyView, setBodyView] = useState<'front' | 'back'>('front');
   const [selectedRoutine, setSelectedRoutine] = useState<ScreenWorkoutRoutine | null>(
     null,
@@ -858,6 +968,57 @@ const WorkoutScreen = ({navigation}: any) => {
   const [newRoutineName, setNewRoutineName] = useState('');
   const [selectedExercisesForRoutine, setSelectedExercisesForRoutine] =
     useState<string[]>([]);
+  const [showAddToRoutineModal, setShowAddToRoutineModal] = useState(false);
+  const [showPickRoutineModal, setShowPickRoutineModal] = useState(false);
+  const [addToRoutineExercise, setAddToRoutineExercise] =
+    useState<ScreenExercise | null>(null);
+  const [quickRoutineName, setQuickRoutineName] = useState('');
+
+  const closeRoutineFlowModals = () => {
+    setShowAddToRoutineModal(false);
+    setShowPickRoutineModal(false);
+    setAddToRoutineExercise(null);
+    setQuickRoutineName('');
+  };
+
+  const ensureSignedInForRoutine = (): boolean => {
+    if (firebaseAuth.currentUser) {
+      return true;
+    }
+    Alert.alert(
+      'Sign in required',
+      'Sign in to add exercises to your personal routines.',
+    );
+    return false;
+  };
+
+  const openPickRoutineList = (exercise: ScreenExercise) => {
+    if (!ensureSignedInForRoutine()) {
+      return;
+    }
+    setAddToRoutineExercise(exercise);
+    setShowPickRoutineModal(true);
+  };
+
+  const openCreateRoutineModal = (exercise: ScreenExercise) => {
+    if (!ensureSignedInForRoutine()) {
+      return;
+    }
+    setAddToRoutineExercise(exercise);
+    setQuickRoutineName('');
+    setShowAddToRoutineModal(true);
+  };
+
+  const handlePickRoutineForExercise = async (
+    routine: ScreenWorkoutRoutine,
+  ) => {
+    if (!addToRoutineExercise) {
+      return;
+    }
+    await addExerciseToExistingRoutine(routine.id, addToRoutineExercise);
+    setShowPickRoutineModal(false);
+    setAddToRoutineExercise(null);
+  };
 
   // Workout planner state
   const [showPlanner, setShowPlanner] = useState(false);
@@ -925,7 +1086,58 @@ const WorkoutScreen = ({navigation}: any) => {
     };
   }, []);
 
-  const startWorkout = (routine: ScreenWorkoutRoutine) => {
+  const resolveWorkoutExercise = (
+    routine: ScreenWorkoutRoutine,
+    exerciseId: string,
+  ): ScreenExercise | null => {
+    const snapshot = routine.routineExercises.find(
+      entry => entry.exerciseId === exerciseId,
+    );
+    if (snapshot) {
+      return routineEntryToScreenExercise(snapshot);
+    }
+    const fromCatalog = exerciseCatalog.find(ex => ex.id === exerciseId);
+    if (fromCatalog) {
+      return fromCatalog;
+    }
+    return null;
+  };
+
+  const loadWorkoutExercise = async (
+    routine: ScreenWorkoutRoutine,
+    exerciseId: string,
+  ): Promise<ScreenExercise | null> => {
+    const resolved = resolveWorkoutExercise(routine, exerciseId);
+    if (resolved) {
+      return resolved;
+    }
+    try {
+      return await fetchCatalogExerciseDetail(exerciseId);
+    } catch (e) {
+      console.warn('loadWorkoutExercise', e);
+      return null;
+    }
+  };
+
+  const startWorkout = async (routine: ScreenWorkoutRoutine) => {
+    if (routine.exercises.length === 0) {
+      Alert.alert(
+        'Empty routine',
+        'Add at least one exercise before starting this routine.',
+      );
+      return;
+    }
+
+    const firstExerciseId = routine.exercises[0];
+    const exercise = await loadWorkoutExercise(routine, firstExerciseId);
+    if (!exercise) {
+      Alert.alert(
+        'Exercise unavailable',
+        'Could not load the first exercise for this routine.',
+      );
+      return;
+    }
+
     setSelectedRoutine(routine);
     setWorkoutInProgress(true);
     setWorkoutStartTime(Date.now());
@@ -934,11 +1146,7 @@ const WorkoutScreen = ({navigation}: any) => {
     setCompletedSetsCount(0);
     setCompletedExercisesCount(0);
     setExerciseSetProgress({});
-
-    // Get first exercise
-    const firstExerciseId = routine.exercises[0];
-    const exercise = exerciseCatalog.find(ex => ex.id === firstExerciseId);
-    setCurrentExercise(exercise || null);
+    setCurrentExercise(exercise);
   };
 
   // Calendar functions
@@ -974,9 +1182,27 @@ const WorkoutScreen = ({navigation}: any) => {
   const handleExercisePress = (exercise: ScreenExercise) => {
     setSelectedExercise(exercise);
     setShowExerciseModal(true);
+
+    if (!hasPaidMuscleWikiApiKey()) {
+      return;
+    }
+
+    setLoadingExerciseDetail(true);
+    fetchMuscleWikiExerciseDetail(exercise.id)
+      .then(detailed => {
+        if (detailed) {
+          setSelectedExercise(detailed);
+        }
+      })
+      .catch(e => {
+        console.warn('exerciseDetail', e);
+      })
+      .finally(() => {
+        setLoadingExerciseDetail(false);
+      });
   };
 
-  const nextExercise = () => {
+  const nextExercise = async () => {
     if (!selectedRoutine || !currentExercise) return;
 
     const currentIndex = selectedRoutine.exercises.indexOf(currentExercise.id);
@@ -984,8 +1210,18 @@ const WorkoutScreen = ({navigation}: any) => {
 
     if (nextIndex < selectedRoutine.exercises.length) {
       const nextExerciseId = selectedRoutine.exercises[nextIndex];
-      const exercise = exerciseCatalog.find(ex => ex.id === nextExerciseId);
-      setCurrentExercise(exercise || null);
+      const exercise = await loadWorkoutExercise(selectedRoutine, nextExerciseId);
+      if (!exercise) {
+        Alert.alert(
+          'Exercise unavailable',
+          'Could not load the next exercise. Ending workout.',
+        );
+        setWorkoutInProgress(false);
+        setSelectedRoutine(null);
+        setCurrentExercise(null);
+        return;
+      }
+      setCurrentExercise(exercise);
       setCurrentSet(1);
       setCurrentRep(0);
     } else {
@@ -1028,6 +1264,17 @@ const WorkoutScreen = ({navigation}: any) => {
     }
 
     const nameToSave = newRoutineName.trim();
+    const routineExercises = selectedExercisesForRoutine
+      .map((exerciseId, index) => {
+        const exercise = exerciseCatalog.find(ex => ex.id === exerciseId);
+        return exercise ? buildRoutineExerciseEntry(exercise, index) : null;
+      })
+      .filter(Boolean) as RoutineExerciseEntry[];
+
+    if (!routineExercises.length) {
+      Alert.alert('Error', 'Could not resolve selected exercises.');
+      return;
+    }
 
     try {
       const u = firebaseAuth.currentUser;
@@ -1040,11 +1287,12 @@ const WorkoutScreen = ({navigation}: any) => {
       }
       await createUserRoutine({
         name: nameToSave,
-        description: 'Custom personal routine',
+        description: routineExercises.map(entry => entry.exerciseName).join(' · '),
         difficulty: 'beginner',
-        exerciseIds: selectedExercisesForRoutine,
-        duration: selectedExercisesForRoutine.length * 5,
-        caloriesBurned: selectedExercisesForRoutine.length * 50,
+        exerciseIds: routineExercises.map(entry => entry.exerciseId),
+        routineExercises,
+        duration: routineExercises.length * 5,
+        caloriesBurned: routineExercises.length * 50,
         muscleGroups: [],
         equipment: 'mixed',
       });
@@ -1058,6 +1306,77 @@ const WorkoutScreen = ({navigation}: any) => {
         'Error',
         'Could not save the routine. Check Firestore rules and your connection.',
       );
+    }
+  };
+
+  const addExerciseToExistingRoutine = async (
+    routineId: string,
+    exercise: ScreenExercise,
+  ) => {
+    try {
+      const u = firebaseAuth.currentUser;
+      if (!u) {
+        Alert.alert(
+          'Sign in required',
+          'Sign in to save routines to your account.',
+        );
+        return;
+      }
+      await addExerciseToUserRoutine(
+        routineId,
+        buildRoutineExerciseEntry(exercise, 0),
+      );
+      Alert.alert('Added', `"${exercise.name}" was added to your routine.`);
+    } catch (e) {
+      const message =
+        e instanceof Error && e.message === 'Exercise already in routine'
+          ? 'This exercise is already in that routine.'
+          : 'Could not add the exercise. Try again.';
+      Alert.alert('Error', message);
+    }
+  };
+
+  const createQuickRoutineFromExercise = async () => {
+    if (!addToRoutineExercise) {
+      return;
+    }
+    const nameToSave = quickRoutineName.trim();
+    if (!nameToSave) {
+      Alert.alert('Name required', 'Enter a name for your new routine.');
+      return;
+    }
+
+    try {
+      const u = firebaseAuth.currentUser;
+      if (!u) {
+        Alert.alert(
+          'Sign in required',
+          'Sign in to save routines to your account.',
+        );
+        return;
+      }
+      const entry = buildRoutineExerciseEntry(addToRoutineExercise, 0);
+      await createUserRoutine({
+        name: nameToSave,
+        description: addToRoutineExercise.name,
+        difficulty: addToRoutineExercise.difficulty,
+        exerciseIds: [entry.exerciseId],
+        routineExercises: [entry],
+        duration: 5,
+        caloriesBurned: 50,
+        muscleGroups: addToRoutineExercise.muscleGroups,
+        equipment: addToRoutineExercise.equipment,
+      });
+      setShowAddToRoutineModal(false);
+      setAddToRoutineExercise(null);
+      setQuickRoutineName('');
+      Alert.alert(
+        'Routine created',
+        `"${nameToSave}" now includes ${addToRoutineExercise.name}.`,
+      );
+    } catch (e) {
+      console.warn('createQuickRoutineFromExercise', e);
+      Alert.alert('Error', 'Could not create the routine. Try again.');
     }
   };
 
@@ -1193,13 +1512,9 @@ const WorkoutScreen = ({navigation}: any) => {
       exerciseBreakdown,
     };
 
-    console.log('Saving workout for date:', today);
     addWorkoutSession(newWorkout);
   };
 
-  // Progress tracking is now handled by WorkoutContext
-
-  // Weekly planner functions
   const assignRoutineToDay = (day: string, routineName: string) => {
     setWeeklyPlan(prev => {
       const next = {...prev, [day]: routineName};
@@ -1253,21 +1568,39 @@ const WorkoutScreen = ({navigation}: any) => {
     exercise: ScreenExercise,
     muscleGroup: MuscleGroupOption,
   ) => {
-    const haystack = [
-      exercise.name,
-      exercise.description,
-      ...(exercise.instructions ?? []),
-      ...(exercise.muscleGroups ?? []),
-    ]
-      .join(' ')
-      .toLowerCase();
-    return muscleGroup.keywords.some(keyword => haystack.includes(keyword));
+    const aliases = CATALOG_MUSCLE_ALIASES[muscleGroup.key] ?? [];
+    const exerciseMuscles = (exercise.muscleGroups ?? []).map(m =>
+      m.toLowerCase().trim(),
+    );
+
+    if (
+      aliases.some(alias =>
+        exerciseMuscles.some(
+          muscle =>
+            muscle === alias ||
+            muscle.includes(alias) ||
+            alias.includes(muscle),
+        ),
+      )
+    ) {
+      return true;
+    }
+
+    const name = exercise.name.toLowerCase();
+    return muscleGroup.keywords.some(keyword => {
+      const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern =
+        keyword.length <= 3
+          ? new RegExp(`\\b${escaped}\\b`, 'i')
+          : new RegExp(escaped, 'i');
+      return pattern.test(name);
+    });
   };
 
   const getFilteredExercises = () => {
     let filtered = exerciseCatalog;
 
-    if (selectedMuscleGroupKey) {
+    if (selectedMuscleGroupKey && !hasPaidMuscleWikiApiKey()) {
       const muscleGroup = MUSCLE_GROUP_OPTIONS.find(
         group => group.key === selectedMuscleGroupKey,
       );
@@ -1295,7 +1628,9 @@ const WorkoutScreen = ({navigation}: any) => {
         <Text style={styles.exerciseName}>{item.name}</Text>
         <Text style={styles.exerciseDifficulty}>{item.difficulty}</Text>
       </View>
-      <Text style={styles.exerciseDescription}>{item.description}</Text>
+      <Text style={styles.exerciseDescription}>
+        {summarizeDescription(item.description)}
+      </Text>
       <View style={styles.exerciseStats}>
         <Text style={styles.exerciseStat}>{item.sets} sets</Text>
         <Text style={styles.exerciseStat}>{item.reps} reps</Text>
@@ -1610,14 +1945,6 @@ const WorkoutScreen = ({navigation}: any) => {
               <TouchableOpacity
                 style={styles.completeSetButton}
                 onPress={() => {
-                  console.log('🔥 Complete Set button pressed!');
-                  console.log(
-                    'Current set:',
-                    currentSet,
-                    'Total sets:',
-                    currentExercise.sets,
-                  );
-
                   setCompletedSetsCount(prev => prev + 1);
                   setExerciseSetProgress(prev => {
                     const exId = currentExercise.id;
@@ -1631,7 +1958,6 @@ const WorkoutScreen = ({navigation}: any) => {
                     };
                   });
                   if (currentSet < currentExercise.sets) {
-                    console.log('📈 Moving to next set');
                     setCurrentSet(currentSet + 1);
                     // Start rest timer between sets
                     startTimer(
@@ -1641,7 +1967,6 @@ const WorkoutScreen = ({navigation}: any) => {
                     );
                   } else {
                     setCompletedExercisesCount(prev => prev + 1);
-                    console.log('🏃 Moving to next exercise');
                     // Start break timer before next exercise
                     startTimer(
                       120,
@@ -1856,6 +2181,9 @@ const WorkoutScreen = ({navigation}: any) => {
               />
 
               <Text style={styles.formSubtitle}>Select Exercises:</Text>
+              <Text style={styles.formHint}>
+                Tip: open any exercise and tap "Add to my routine" while browsing.
+              </Text>
               <FlatList
                 data={getFilteredExercises()}
                 renderItem={({item}) => (
@@ -1916,6 +2244,13 @@ const WorkoutScreen = ({navigation}: any) => {
                 keyExtractor={item => item.id}
                 scrollEnabled={false}
                 showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                  <Text style={{color: theme.colors.textSecondary, paddingVertical: 8}}>
+                    {exerciseCatalog.length < 2
+                      ? 'Loading exercise catalog…'
+                      : 'Building preset routines from catalog…'}
+                  </Text>
+                }
               />
             </>
           )}
@@ -2140,7 +2475,10 @@ const WorkoutScreen = ({navigation}: any) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Exercise Details</Text>
               <TouchableOpacity
-                onPress={() => setShowExerciseModal(false)}
+                onPress={() => {
+                  setShowExerciseModal(false);
+                  setLoadingExerciseDetail(false);
+                }}
                 style={styles.closeButton}>
                 <Text style={styles.closeButtonText}>✕</Text>
               </TouchableOpacity>
@@ -2152,7 +2490,27 @@ const WorkoutScreen = ({navigation}: any) => {
               <Text style={styles.exerciseDetailDescription}>
                 {selectedExercise.description}
               </Text>
-              {selectedExercise.imageUrl ? (
+              {loadingExerciseDetail ? (
+                <Text style={styles.exerciseDetailDescription}>
+                  Loading video and instructions...
+                </Text>
+              ) : null}
+              {!loadingExerciseDetail &&
+              getExerciseVideoSource(selectedExercise.videoUrl) ? (
+                <View style={styles.exerciseDetailVideoWrap}>
+                  <Video
+                    source={getExerciseVideoSource(selectedExercise.videoUrl)!}
+                    style={styles.exerciseDetailVideo}
+                    controls
+                    resizeMode="contain"
+                    paused={false}
+                    repeat
+                    ignoreSilentSwitch="ignore"
+                    playInBackground={false}
+                    playWhenInactive={false}
+                  />
+                </View>
+              ) : selectedExercise.imageUrl ? (
                 <Image
                   source={{uri: selectedExercise.imageUrl}}
                   style={styles.exerciseDetailImage}
@@ -2193,7 +2551,105 @@ const WorkoutScreen = ({navigation}: any) => {
                   </Text>
                 ))}
               </View>
+
+              <View style={styles.addToRoutineActions}>
+                <TouchableOpacity
+                  style={styles.addToRoutineButton}
+                  onPress={() => openPickRoutineList(selectedExercise)}>
+                  <Text style={styles.addToRoutineButtonText}>
+                    Add to a routine
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.createRoutineFromExerciseButton}
+                  onPress={() => openCreateRoutineModal(selectedExercise)}>
+                  <Text style={styles.createRoutineFromExerciseButtonText}>
+                    Create new routine
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
+          </View>
+        </View>
+      )}
+
+      {showPickRoutineModal && addToRoutineExercise && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Choose a routine</Text>
+              <TouchableOpacity
+                onPress={closeRoutineFlowModals}
+                style={styles.closeButton}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.exerciseDetailDescription}>
+              Add "{addToRoutineExercise.name}" to one of your routines:
+            </Text>
+            {personalRoutines.length === 0 ? (
+              <View style={styles.pickRoutineEmpty}>
+                <Text style={styles.pickRoutineEmptyText}>
+                  You do not have any routines yet.
+                </Text>
+                <TouchableOpacity
+                  style={styles.createRoutineFromExerciseButton}
+                  onPress={() => {
+                    setShowPickRoutineModal(false);
+                    setQuickRoutineName('');
+                    setShowAddToRoutineModal(true);
+                  }}>
+                  <Text style={styles.createRoutineFromExerciseButtonText}>
+                    Create new routine
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView style={styles.pickRoutineList}>
+                {personalRoutines.map(routine => (
+                  <TouchableOpacity
+                    key={routine.id}
+                    style={styles.pickRoutineItem}
+                    onPress={() => handlePickRoutineForExercise(routine)}>
+                    <Text style={styles.pickRoutineItemName}>{routine.name}</Text>
+                    <Text style={styles.pickRoutineItemMeta} numberOfLines={2}>
+                      {routine.exercises.length} exercises
+                      {routine.description ? ` · ${routine.description}` : ''}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      )}
+
+      {showAddToRoutineModal && addToRoutineExercise && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>New routine</Text>
+              <TouchableOpacity
+                onPress={closeRoutineFlowModals}
+                style={styles.closeButton}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.exerciseDetailDescription}>
+              Create a routine with "{addToRoutineExercise.name}".
+            </Text>
+            <TextInput
+              style={styles.routineNameInput}
+              placeholder="Routine name..."
+              placeholderTextColor={theme.colors.placeholder}
+              value={quickRoutineName}
+              onChangeText={setQuickRoutineName}
+            />
+            <TouchableOpacity
+              style={styles.saveRoutineButton}
+              onPress={createQuickRoutineFromExercise}>
+              <Text style={styles.saveRoutineButtonText}>Save routine</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}

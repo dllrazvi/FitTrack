@@ -10,10 +10,7 @@ import Svg, {
 } from 'react-native-svg';
 
 const SVGBodyScreen = () => {
-  const handlePress = (muscle: string) => {
-    console.log('Pressed muscle:', muscle);
-    // Add navigation or filtering here if needed.
-  };
+  const handlePress = (_muscle: string) => {};
 
   return (
     <View style={styles.container}>
@@ -22,7 +19,6 @@ const SVGBodyScreen = () => {
         height={600}
         viewBox="0 0 320 600"
       >
-        {/* Paste SVG-to-JSX generated code below if updating the diagram. */}
             <defs id="defs2">
               <linearGradient id="linearGradient1793">
                 <stop

@@ -14,12 +14,22 @@ import {
 } from '@react-native-firebase/firestore';
 import {getAuth} from '@react-native-firebase/auth';
 
+export type RoutineExerciseEntry = {
+  exerciseId: string;
+  exerciseName: string;
+  sets: number;
+  reps: number;
+  restTime: number;
+  order: number;
+};
+
 export type FirestoreRoutine = {
   id: string;
   name: string;
   description: string;
   difficulty: string;
   exerciseIds: string[];
+  routineExercises: RoutineExerciseEntry[];
   duration: number;
   caloriesBurned: number;
   muscleGroups: string[];
@@ -58,6 +68,27 @@ function plannerRef(userId: string) {
   return doc(db, 'users', userId, 'settings', 'weeklyPlanner');
 }
 
+function mapRoutineExerciseEntry(raw: unknown, index: number): RoutineExerciseEntry | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const entry = raw as Record<string, unknown>;
+  const exerciseId = typeof entry.exerciseId === 'string' ? entry.exerciseId.trim() : '';
+  const exerciseName =
+    typeof entry.exerciseName === 'string' ? entry.exerciseName.trim() : '';
+  if (!exerciseId || !exerciseName) {
+    return null;
+  }
+  return {
+    exerciseId,
+    exerciseName,
+    sets: typeof entry.sets === 'number' ? entry.sets : 3,
+    reps: typeof entry.reps === 'number' ? entry.reps : 12,
+    restTime: typeof entry.restTime === 'number' ? entry.restTime : 60,
+    order: typeof entry.order === 'number' ? entry.order : index,
+  };
+}
+
 function mapRoutineDoc(d: {
   id: string;
   data: () => Record<string, unknown>;
@@ -65,12 +96,19 @@ function mapRoutineDoc(d: {
   const data = d.data() as any;
   const createdAt = data?.createdAt?.toDate?.() || new Date();
   const updatedAt = data?.updatedAt?.toDate?.() || createdAt;
+  const exerciseIds = Array.isArray(data.exerciseIds) ? data.exerciseIds : [];
+  const routineExercises = Array.isArray(data.routineExercises)
+    ? data.routineExercises
+        .map((entry: unknown, index: number) => mapRoutineExerciseEntry(entry, index))
+        .filter(Boolean) as RoutineExerciseEntry[]
+    : [];
   return {
     id: d.id,
     name: data.name || '',
     description: data.description || '',
     difficulty: data.difficulty || 'beginner',
-    exerciseIds: Array.isArray(data.exerciseIds) ? data.exerciseIds : [],
+    exerciseIds,
+    routineExercises,
     duration: typeof data.duration === 'number' ? data.duration : 0,
     caloriesBurned: typeof data.caloriesBurned === 'number' ? data.caloriesBurned : 0,
     muscleGroups: Array.isArray(data.muscleGroups) ? data.muscleGroups : [],
@@ -108,6 +146,7 @@ export async function createUserRoutine(input: {
   description: string;
   difficulty: string;
   exerciseIds: string[];
+  routineExercises?: RoutineExerciseEntry[];
   duration: number;
   caloriesBurned: number;
   muscleGroups?: string[];
@@ -124,6 +163,7 @@ export async function createUserRoutine(input: {
     description: input.description,
     difficulty: input.difficulty,
     exerciseIds: input.exerciseIds,
+    routineExercises: input.routineExercises ?? [],
     duration: input.duration,
     caloriesBurned: input.caloriesBurned,
     muscleGroups: input.muscleGroups ?? [],
@@ -132,6 +172,53 @@ export async function createUserRoutine(input: {
     updatedAt: now,
   });
   return ref.id;
+}
+
+export async function addExerciseToUserRoutine(
+  routineId: string,
+  exercise: Omit<RoutineExerciseEntry, 'order'>,
+): Promise<void> {
+  const id = uid();
+  if (!id) {
+    throw new Error('Not signed in');
+  }
+  const ref = doc(routinesCol(id), routineId);
+  const snap = await getDoc(ref);
+  if (!snap.exists) {
+    throw new Error('Routine not found');
+  }
+  const data = snap.data() as Record<string, unknown>;
+  const exerciseIds = Array.isArray(data.exerciseIds)
+    ? (data.exerciseIds as string[])
+    : [];
+  if (exerciseIds.includes(exercise.exerciseId)) {
+    throw new Error('Exercise already in routine');
+  }
+  const routineExercises = Array.isArray(data.routineExercises)
+    ? (data.routineExercises as RoutineExerciseEntry[])
+    : [];
+  const entry: RoutineExerciseEntry = {
+    ...exercise,
+    order: routineExercises.length,
+  };
+  const nextCount = routineExercises.length + 1;
+  await setDoc(
+    ref,
+    {
+      exerciseIds: [...exerciseIds, exercise.exerciseId],
+      routineExercises: [...routineExercises, entry],
+      duration: Math.max(
+        typeof data.duration === 'number' ? data.duration : 0,
+        nextCount * 5,
+      ),
+      caloriesBurned: Math.max(
+        typeof data.caloriesBurned === 'number' ? data.caloriesBurned : 0,
+        nextCount * 50,
+      ),
+      updatedAt: serverTimestamp(),
+    },
+    {merge: true},
+  );
 }
 
 export async function deleteUserRoutine(routineId: string): Promise<void> {

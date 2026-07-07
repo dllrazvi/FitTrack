@@ -1,0 +1,13 @@
+{
+  "name": "fittrack-monorepo-root",
+  "private": true,
+  "description": "Delegates to ./FitTrack — the React Native app lives in that folder.",
+  "scripts": {
+    "install:app": "npm install --prefix FitTrack",
+    "start": "npm --prefix FitTrack run start",
+    "android": "npm --prefix FitTrack run android",
+    "ios": "npm --prefix FitTrack run ios",
+    "lint": "npm --prefix FitTrack run lint",
+    "test": "npm --prefix FitTrack run test"
+  }
+}

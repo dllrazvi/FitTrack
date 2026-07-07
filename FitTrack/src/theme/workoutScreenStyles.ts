@@ -180,6 +180,29 @@ export function createWorkoutScreenStyles(
     color: c.textSecondary,
     marginBottom: 10,
   },
+  exerciseVideoWrap: {
+    width: '100%',
+    height: 160,
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginBottom: 10,
+    backgroundColor: c.background,
+  },
+  exerciseVideoPreview: {
+    width: '100%',
+    height: '100%',
+  },
+  exerciseVideoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  exerciseVideoPlayLabel: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
   exerciseStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -498,6 +521,12 @@ export function createWorkoutScreenStyles(
     color: c.text,
     marginBottom: 10,
     marginTop: 15,
+  },
+  formHint: {
+    fontSize: 13,
+    color: c.textSecondary,
+    marginBottom: 10,
+    lineHeight: 18,
   },
   routineNameInput: {
     borderWidth: 1,
@@ -861,6 +890,18 @@ export function createWorkoutScreenStyles(
     marginBottom: 20,
     lineHeight: 24,
   },
+  exerciseDetailVideoWrap: {
+    width: '100%',
+    height: 220,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 16,
+    backgroundColor: c.surface,
+  },
+  exerciseDetailVideo: {
+    width: '100%',
+    height: '100%',
+  },
   exerciseDetailImage: {
     width: '100%',
     height: 200,
@@ -905,6 +946,66 @@ export function createWorkoutScreenStyles(
     color: c.text,
     lineHeight: 20,
     marginBottom: 8,
+  },
+  addToRoutineActions: {
+    marginTop: 16,
+    marginBottom: 8,
+    gap: 10,
+  },
+  addToRoutineButton: {
+    backgroundColor: '#96CEB4',
+    borderRadius: 12,
+    padding: 15,
+    alignItems: 'center',
+  },
+  addToRoutineButtonText: {
+    color: c.buttonText,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  createRoutineFromExerciseButton: {
+    backgroundColor: c.card,
+    borderRadius: 12,
+    padding: 15,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: BRAND_ACCENT,
+  },
+  createRoutineFromExerciseButtonText: {
+    color: BRAND_ACCENT,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  pickRoutineList: {
+    maxHeight: 320,
+  },
+  pickRoutineItem: {
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surface,
+  },
+  pickRoutineItemName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: c.text,
+    marginBottom: 4,
+  },
+  pickRoutineItemMeta: {
+    fontSize: 13,
+    color: c.textSecondary,
+    lineHeight: 18,
+  },
+  pickRoutineEmpty: {
+    paddingVertical: 12,
+    gap: 12,
+  },
+  pickRoutineEmptyText: {
+    fontSize: 14,
+    color: c.textSecondary,
+    textAlign: 'center',
   },
   historyCard: {
     backgroundColor: c.card,

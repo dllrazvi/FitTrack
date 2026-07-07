@@ -80,7 +80,6 @@ const MealPlansScreen = ({navigation}: any) => {
       width: 60,
     },
 
-    /** Search + template chips in one card to avoid stacked padding gaps */
     filtersCard: {
       paddingHorizontal: theme.spacing.lg,
       paddingTop: theme.spacing.sm,
@@ -351,7 +350,6 @@ const MealPlansScreen = ({navigation}: any) => {
   const activePlan = activeMealPlanId
     ? mealPlans.find(p => p.id === activeMealPlanId)
     : undefined;
-  /** Plan chosen via “Use This Plan”; otherwise show a suggestion from current goal filters. */
   const targetPlan = activePlan ?? suggestedPlan;
   const targetSnapshot = targetPlan
     ? {

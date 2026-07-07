@@ -139,36 +139,164 @@ export async function fetchWgerExercisesForCatalog(
   }
   const json = await res.json();
   const rows: WgerExerciseInfoRow[] = json.results || [];
-  return rows.map(row => {
-    const {name, description} = pickEnglishTranslation(row);
-    const muscleFromCategory = row.category?.name
-      ? [row.category.name]
-      : (row.muscles || []).map(m => m.name).filter(Boolean);
-    const muscleGroups =
-      muscleFromCategory.length > 0 ? muscleFromCategory : ['general'];
-    const equipNames = (row.equipment || []).map(e => e.name).filter(Boolean);
-    const equipment =
-      equipNames.length > 0 ? equipNames.join(', ') : 'bodyweight';
-    const imageUrl = pickImageUrl(row);
+  return rows.map(row => mapWgerInfoRowToScreenExercise(row));
+}
 
-    return {
-      id: `wger-${row.id}`,
-      name,
-      description: description.slice(0, 500),
-      muscleGroups,
-      equipment,
-      difficulty: mapDifficulty(row.category?.name),
-      instructions: [description.slice(0, 800)],
-      sets: 3,
-      reps: 12,
-      restTime: 60,
-      caloriesPerMinute: 8,
-      imageUrl,
-      videoUrl: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-  });
+function mapWgerInfoRowToScreenExercise(row: WgerExerciseInfoRow): ScreenExercise {
+  const {name, description} = pickEnglishTranslation(row);
+  const muscleFromCategory = row.category?.name
+    ? [row.category.name]
+    : (row.muscles || []).map(m => m.name).filter(Boolean);
+  const muscleGroups =
+    muscleFromCategory.length > 0 ? muscleFromCategory : ['general'];
+  const equipNames = (row.equipment || []).map(e => e.name).filter(Boolean);
+  const equipment =
+    equipNames.length > 0 ? equipNames.join(', ') : 'bodyweight';
+  const imageUrl = pickImageUrl(row);
+
+  return {
+    id: `wger-${row.id}`,
+    name,
+    description: description.slice(0, 500),
+    muscleGroups,
+    equipment,
+    difficulty: mapDifficulty(row.category?.name),
+    instructions: [description.slice(0, 800)],
+    sets: 3,
+    reps: 12,
+    restTime: 60,
+    caloriesPerMinute: 8,
+    imageUrl,
+    videoUrl: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+export async function fetchWgerExerciseDetail(
+  exerciseId: string,
+): Promise<ScreenExercise | null> {
+  const numericId = exerciseId.replace(/^wger-/, '').trim();
+  if (!/^\d+$/.test(numericId)) {
+    return null;
+  }
+  const url = `${WGER_BASE}/exerciseinfo/${numericId}/?language=2`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    return null;
+  }
+  const row: WgerExerciseInfoRow = await res.json();
+  if (!row?.id) {
+    return null;
+  }
+  return mapWgerInfoRowToScreenExercise(row);
+}
+
+export async function fetchCatalogExerciseDetail(
+  exerciseId: string,
+): Promise<ScreenExercise | null> {
+  const trimmed = exerciseId.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.startsWith('mw-') || /^\d+$/.test(trimmed.replace(/^mw-/, ''))) {
+    try {
+      const muscleWiki = await fetchMuscleWikiExerciseDetail(trimmed);
+      if (muscleWiki) {
+        return muscleWiki;
+      }
+    } catch {
+      /* try wger next */
+    }
+  }
+  if (trimmed.startsWith('wger-')) {
+    return fetchWgerExerciseDetail(trimmed);
+  }
+  return null;
+}
+
+function stripMarkdown(text: string): string {
+  if (!text) {
+    return '';
+  }
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/(^|\n)-\s*/g, '$1• ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function truncatePreview(text: string, maxLength = 160): string {
+  const clean = text.trim();
+  if (clean.length <= maxLength) {
+    return clean;
+  }
+  return `${clean.slice(0, maxLength).trim()}...`;
+}
+
+function firstPreviewSentence(text: string, maxLength = 160): string {
+  const clean = stripMarkdown(text);
+  const match = clean.match(/^[^.!?]+[.!?]?/);
+  return truncatePreview((match?.[0] || clean).trim(), maxLength);
+}
+
+const NAME_EQUIPMENT_PATTERNS: [RegExp, string][] = [
+  [/\bsmith machine\b/i, 'Smith machine'],
+  [/\bmachine\b/i, 'Machine'],
+  [/\bkettlebell\b/i, 'Kettlebell'],
+  [/\bdumbbell\b/i, 'Dumbbell'],
+  [/\bbarbell\b/i, 'Barbell'],
+  [/\bcable\b/i, 'Cable'],
+  [/\bband\b/i, 'Band'],
+  [/\bbodyweight\b/i, 'Bodyweight'],
+  [/\bplate\b/i, 'Plate'],
+  [/\btrx\b/i, 'TRX'],
+  [/\bmedicine ball\b/i, 'Medicine ball'],
+];
+
+function inferEquipmentFromName(name: string): string | null {
+  for (const [pattern, label] of NAME_EQUIPMENT_PATTERNS) {
+    if (pattern.test(name)) {
+      return label;
+    }
+  }
+  return null;
+}
+
+function buildListPreviewDescription(
+  row: any,
+  name: string,
+  muscleGroups: string[],
+  equipment: string,
+  listMuscleFilter?: string | null,
+): string {
+  const steps = normalizeList(row?.steps);
+  if (steps.length) {
+    return firstPreviewSentence(steps[0]);
+  }
+
+  const rawDetail = row?.description || row?.details || row?.instructions;
+  if (typeof rawDetail === 'string' && rawDetail.trim()) {
+    return firstPreviewSentence(rawDetail);
+  }
+
+  const muscles =
+    muscleGroups.length && muscleGroups[0] !== 'general'
+      ? muscleGroups.slice(0, 2).join(', ')
+      : listMuscleFilter?.trim() || null;
+
+  const equip =
+    equipment !== 'bodyweight'
+      ? equipment
+      : inferEquipmentFromName(name);
+
+  const parts = [muscles, equip].filter(Boolean);
+  if (parts.length) {
+    return parts.join(' · ');
+  }
+
+  return 'Open for instructions and demo video.';
 }
 
 function toDifficulty(value: string | undefined): 'beginner' | 'intermediate' | 'advanced' {
@@ -186,40 +314,221 @@ function normalizeList(values: unknown): string[] {
     .filter(Boolean);
 }
 
-function mapMuscleWikiRowToScreenExercise(row: any, index: number): ScreenExercise {
-  const id = row?.id != null ? `mw-${String(row.id)}` : `mw-generated-${index}`;
-  const name = String(row?.name || `Exercise ${index + 1}`).trim();
-  const description = String(
-    row?.description ||
-      row?.instructions ||
-      'No detailed description available for this exercise.',
-  ).trim();
-  const muscleGroups = normalizeList(
-    row?.muscles || row?.muscle_groups || row?.target_muscles,
+function firstVideoUrl(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) {
+    return value.split('#')[0].trim();
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const url = firstVideoUrl(item);
+      if (url) {
+        return url;
+      }
+    }
+  }
+  return null;
+}
+
+function extractYoutubeWatchUrl(value: unknown): string | null {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) {
+    return null;
+  }
+  const embedMatch = raw.match(/youtube\.com\/embed\/([^?&/]+)/i);
+  if (embedMatch?.[1]) {
+    return `https://www.youtube.com/watch?v=${embedMatch[1]}`;
+  }
+  if (/youtube\.com\/watch/i.test(raw) || raw.includes('youtu.be/')) {
+    return raw.split('#')[0];
+  }
+  return null;
+}
+
+function pickExerciseVideoUrl(row: any): string | null {
+  const youtubeWatch = extractYoutubeWatchUrl(row?.youtubeURL);
+  if (youtubeWatch) {
+    return youtubeWatch;
+  }
+  const mp4 =
+    firstVideoUrl(row?.video_url) ||
+    firstVideoUrl(row?.video) ||
+    firstVideoUrl(row?.videoURL);
+  if (mp4 && !mp4.includes('media.musclewiki.com')) {
+    return mp4;
+  }
+  return null;
+}
+
+function pickOfficialVideoUrl(row: any): string | null {
+  if (Array.isArray(row?.videos)) {
+    for (const video of row.videos) {
+      const url =
+        typeof video === 'object' && video && typeof video.url === 'string'
+          ? video.url
+          : null;
+      if (url?.trim()) {
+        return url.split('#')[0].trim();
+      }
+    }
+  }
+  return pickExerciseVideoUrl(row);
+}
+
+function pickOfficialImageUrl(row: any): string | null {
+  if (Array.isArray(row?.videos)) {
+    for (const video of row.videos) {
+      const image =
+        typeof video === 'object' && video && typeof video.og_image === 'string'
+          ? video.og_image
+          : null;
+      if (image?.trim()) {
+        return image.trim();
+      }
+    }
+  }
+  if (typeof row?.image_url === 'string' && row.image_url.trim()) {
+    return row.image_url.trim();
+  }
+  if (typeof row?.thumbnail === 'string' && row.thumbnail.trim()) {
+    return row.thumbnail.trim();
+  }
+  return null;
+}
+
+function buildMuscleWikiListQuery(
+  limit: number,
+  offset: number,
+  options?: MuscleWikiCatalogOptions,
+): string {
+  const params = new URLSearchParams();
+  params.set('limit', String(Math.min(100, Math.max(1, limit))));
+  params.set('offset', String(Math.max(0, offset)));
+  if (options?.muscles?.length) {
+    for (const muscle of options.muscles) {
+      params.append('muscles', muscle);
+    }
+  }
+  return `/exercises?${params.toString()}`;
+}
+
+async function hydrateOfficialExerciseRows(rows: any[]): Promise<any[]> {
+  if (!rows.length) {
+    return [];
+  }
+  const needsDetail = rows.some(
+    row => !row?.steps?.length && !row?.videos?.length && !row?.primary_muscles?.length,
   );
+  if (!needsDetail) {
+    return rows;
+  }
+
+  return Promise.all(
+    rows.map(async row => {
+      if (row?.steps?.length || row?.videos?.length || row?.primary_muscles?.length) {
+        return row;
+      }
+      if (row?.id == null) {
+        return row;
+      }
+      try {
+        return await fetchMuscleWikiJson(`/exercises/${row.id}`);
+      } catch {
+        return row;
+      }
+    }),
+  );
+}
+
+export type MuscleWikiCatalogOptions = {
+  muscles?: string[];
+  /** When false, list items skip video/thumbnail payloads (load on tap). */
+  includeMedia?: boolean;
+};
+
+export const MUSCLE_GROUP_OFFICIAL_FILTER: Record<string, string> = {
+  chest: 'Chest',
+  lats: 'Lats',
+  glutes: 'Glutes',
+  lowerback: 'Lower Back',
+  traps: 'Traps',
+  trapsmiddle: 'Mid back',
+  shoulders: 'Shoulders',
+  biceps: 'Biceps',
+  triceps: 'Triceps',
+  forearms: 'Forearms',
+  hamstrings: 'Hamstrings',
+  quadriceps: 'Quads',
+  calves: 'Calves',
+  core: 'Abdominals',
+  obliques: 'Obliques',
+};
+
+export function getOfficialMuscleFilterName(key: string | null | undefined): string | null {
+  if (!key) {
+    return null;
+  }
+  return MUSCLE_GROUP_OFFICIAL_FILTER[key] ?? null;
+}
+
+function mapMuscleWikiRowToScreenExercise(
+  row: any,
+  index: number,
+  options?: {includeMedia?: boolean; listMuscleFilter?: string | null},
+): ScreenExercise {
+  const includeMedia = options?.includeMedia ?? true;
+  const listMuscleFilter = options?.listMuscleFilter ?? null;
+  const id = row?.id != null ? `mw-${String(row.id)}` : `mw-generated-${index}`;
+  const name = String(
+    row?.name || row?.exercise_name || `Exercise ${index + 1}`,
+  ).trim();
+  const steps = normalizeList(row?.steps);
+  const muscleGroups = normalizeList(
+    row?.primary_muscles || row?.muscles || row?.muscle_groups || row?.target_muscles,
+  );
+  const resolvedMuscleGroups = muscleGroups.length > 0 ? muscleGroups : ['general'];
   const equipmentList = normalizeList(row?.equipment || row?.equipment_required);
-  const equipment = equipmentList.length ? equipmentList.join(', ') : 'bodyweight';
-  const videoUrl =
-    typeof row?.video_url === 'string'
-      ? row.video_url
-      : typeof row?.video === 'string'
-        ? row.video
-        : null;
-  const imageUrl =
-    typeof row?.image_url === 'string'
-      ? row.image_url
-      : typeof row?.thumbnail === 'string'
-        ? row.thumbnail
-        : null;
+  const equipment =
+    equipmentList.length > 0
+      ? equipmentList.join(', ')
+      : typeof row?.category === 'string' && row.category.trim()
+        ? row.category.trim()
+        : typeof row?.Category === 'string' && row.Category.trim()
+          ? row.Category.trim()
+          : inferEquipmentFromName(name) || 'bodyweight';
+  const description = includeMedia
+    ? stripMarkdown(
+        String(
+          row?.description ||
+            row?.details ||
+            (steps.length ? steps.join(' ') : '') ||
+            row?.instructions ||
+            'No detailed description available for this exercise.',
+        ),
+      ).trim()
+    : buildListPreviewDescription(
+        row,
+        name,
+        resolvedMuscleGroups,
+        equipment,
+        listMuscleFilter,
+      );
+  const videoUrl = includeMedia
+    ? hasPaidMuscleWikiApiKey()
+      ? pickOfficialVideoUrl(row)
+      : pickExerciseVideoUrl(row)
+    : null;
+  const imageUrl = includeMedia ? pickOfficialImageUrl(row) : null;
 
   return {
     id,
     name,
     description: description.slice(0, 500),
-    muscleGroups: muscleGroups.length ? muscleGroups : ['general'],
+    muscleGroups: resolvedMuscleGroups,
     equipment,
-    difficulty: toDifficulty(row?.difficulty),
-    instructions: [description.slice(0, 800)],
+    difficulty: toDifficulty(row?.difficulty || row?.Difficulty),
+    instructions: steps.length
+      ? steps.map(step => stripMarkdown(step))
+      : [description.slice(0, 800)],
     sets: 3,
     reps: 12,
     restTime: 60,
@@ -231,8 +540,16 @@ function mapMuscleWikiRowToScreenExercise(row: any, index: number): ScreenExerci
   };
 }
 
-export function hasMuscleWikiApiKey(): boolean {
+function hasPaidMuscleWikiApiKeyInternal(): boolean {
   return MUSCLEWIKI_API_KEY.length > 0 || MUSCLEWIKI_RAPIDAPI_KEY.length > 0;
+}
+
+export function hasMuscleWikiApiKey(): boolean {
+  return hasPaidMuscleWikiApiKeyInternal();
+}
+
+export function hasPaidMuscleWikiApiKey(): boolean {
+  return hasPaidMuscleWikiApiKeyInternal();
 }
 
 async function fetchMuscleWikiJson(pathAndQuery: string): Promise<any> {
@@ -286,19 +603,62 @@ async function fetchMuscleWikiJson(pathAndQuery: string): Promise<any> {
 }
 
 export async function fetchMuscleWikiExercisesForCatalog(
-  limit = 28,
+  limit = 100,
+  options?: MuscleWikiCatalogOptions,
 ): Promise<ScreenExercise[]> {
   if (!hasMuscleWikiApiKey()) {
     throw new Error('Missing MuscleWiki API key');
   }
-  const json = await fetchMuscleWikiJson(`/exercises?limit=${Math.max(1, limit)}`);
-  const rows: any[] = Array.isArray(json?.results)
-    ? json.results
-    : Array.isArray(json)
-      ? json
-      : [];
 
-  return rows.map((row, index) => mapMuscleWikiRowToScreenExercise(row, index));
+  const safeLimit = Math.max(1, limit);
+  const includeMedia = options?.includeMedia ?? false;
+  const listMuscleFilter = options?.muscles?.[0] ?? null;
+  const mapOptions = {includeMedia, listMuscleFilter};
+
+  const collected: any[] = [];
+  let offset = 0;
+  while (collected.length < safeLimit) {
+    const pageLimit = Math.min(100, safeLimit - collected.length);
+    const json = await fetchMuscleWikiJson(
+      buildMuscleWikiListQuery(pageLimit, offset, options),
+    );
+    const rows: any[] = Array.isArray(json?.results)
+      ? json.results
+      : Array.isArray(json)
+        ? json
+        : [];
+    if (!rows.length) {
+      break;
+    }
+    const detailed = includeMedia
+      ? await hydrateOfficialExerciseRows(rows)
+      : rows;
+    collected.push(...detailed);
+    offset += rows.length;
+    if (rows.length < pageLimit) {
+      break;
+    }
+  }
+
+  return collected
+    .slice(0, safeLimit)
+    .map((row, index) =>
+      mapMuscleWikiRowToScreenExercise(row, index, mapOptions),
+    );
+}
+
+export async function fetchMuscleWikiExerciseDetail(
+  exerciseId: string,
+): Promise<ScreenExercise | null> {
+  if (!hasPaidMuscleWikiApiKey()) {
+    return null;
+  }
+  const numericId = exerciseId.replace(/^mw-/, '').trim();
+  if (!/^\d+$/.test(numericId)) {
+    return null;
+  }
+  const json = await fetchMuscleWikiJson(`/exercises/${numericId}`);
+  return mapMuscleWikiRowToScreenExercise(json, 0, {includeMedia: true});
 }
 
 function toStringArray(values: unknown): string[] {

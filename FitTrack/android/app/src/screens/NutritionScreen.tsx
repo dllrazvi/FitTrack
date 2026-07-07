@@ -10,7 +10,6 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-// import AsyncStorage from '@react-native-async-storage/async-storage'; // Temporarily disabled due to linking issues
 import {FoodItem, MealEntry} from '../../../../src/backend/models/Nutrition';
 import {firebaseAuth} from '../../../../src/config/firebase';
 import {useNutrition} from '../../../../src/contexts/NutritionContext';
@@ -27,168 +26,6 @@ import {
   FOOD_CATALOG_USDA_ENABLED,
 } from '../../../../src/services/foodCatalogSearch';
 import {DEFAULT_FOOD_CATALOG} from '../../../../src/services/defaultFoodCatalog';
-
-// const {width} = Dimensions.get('window'); // Not used in current implementation
-
-// Mock food database
-const mockFoods: FoodItem[] = [
-  {
-    id: '1',
-    name: 'Chicken Breast',
-    brand: 'Local Farm',
-    nutrition: {
-      calories: 165,
-      protein: 31,
-      carbohydrates: 0,
-      fat: 3.6,
-      fiber: 0,
-      sugar: 0,
-      sodium: 74,
-      cholesterol: 85,
-    },
-    category: 'protein',
-    isVegetarian: false,
-    isVegan: false,
-    isGlutenFree: true,
-    servingSizes: [
-      {name: '100g', weight: 100},
-      {name: '1 piece (150g)', weight: 150},
-      {name: '1 tbsp (15g)', weight: 15},
-    ],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '2',
-    name: 'Brown Rice',
-    brand: 'BioFarm',
-    nutrition: {
-      calories: 111,
-      protein: 2.6,
-      carbohydrates: 23,
-      fat: 0.9,
-      fiber: 1.8,
-      sugar: 0.4,
-      sodium: 5,
-      cholesterol: 0,
-    },
-    category: 'grains',
-    isVegetarian: true,
-    isVegan: true,
-    isGlutenFree: true,
-    servingSizes: [
-      {name: '100g', weight: 100},
-      {name: '1 cup (200g)', weight: 200},
-      {name: '1 tbsp (15g)', weight: 15},
-    ],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '3',
-    name: 'Broccoli',
-    brand: 'Green Farm',
-    nutrition: {
-      calories: 34,
-      protein: 2.8,
-      carbohydrates: 7,
-      fat: 0.4,
-      fiber: 2.6,
-      sugar: 1.5,
-      sodium: 33,
-      cholesterol: 0,
-    },
-    category: 'vegetables',
-    isVegetarian: true,
-    isVegan: true,
-    isGlutenFree: true,
-    servingSizes: [
-      {name: '100g', weight: 100},
-      {name: '1 piece (148g)', weight: 148},
-      {name: '1 cup (91g)', weight: 91},
-    ],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '4',
-    name: 'Salmon',
-    brand: 'Ocean Fresh',
-    nutrition: {
-      calories: 208,
-      protein: 25,
-      carbohydrates: 0,
-      fat: 12,
-      fiber: 0,
-      sugar: 0,
-      sodium: 59,
-      cholesterol: 63,
-    },
-    category: 'protein',
-    isVegetarian: false,
-    isVegan: false,
-    isGlutenFree: true,
-    servingSizes: [
-      {name: '100g', weight: 100},
-      {name: '1 fillet (154g)', weight: 154},
-      {name: '1 tbsp (15g)', weight: 15},
-    ],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '5',
-    name: 'Avocado',
-    brand: 'Tropical Fruits',
-    nutrition: {
-      calories: 160,
-      protein: 2,
-      carbohydrates: 9,
-      fat: 15,
-      fiber: 7,
-      sugar: 0.7,
-      sodium: 7,
-      cholesterol: 0,
-    },
-    category: 'fruits',
-    isVegetarian: true,
-    isVegan: true,
-    isGlutenFree: true,
-    servingSizes: [
-      {name: '100g', weight: 100},
-      {name: '1 piece (201g)', weight: 201},
-      {name: '1 tbsp (15g)', weight: 15},
-    ],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '6',
-    name: 'Eggs',
-    brand: 'Egg Farm',
-    nutrition: {
-      calories: 155,
-      protein: 13,
-      carbohydrates: 1.1,
-      fat: 11,
-      fiber: 0,
-      sugar: 1.1,
-      sodium: 124,
-      cholesterol: 373,
-    },
-    category: 'protein',
-    isVegetarian: true,
-    isVegan: false,
-    isGlutenFree: true,
-    servingSizes: [
-      {name: '100g', weight: 100},
-      {name: '1 egg (50g)', weight: 50},
-      {name: '1 tbsp (15g)', weight: 15},
-    ],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
 
 type SortField = 'name' | 'calories' | 'protein' | 'carbs' | 'fat';
 
@@ -241,18 +78,7 @@ const NutritionScreen = ({navigation}: any) => {
   const {unreadCount, openPanel, closePanel, panelOpen} = useNotificationInbox();
   const stackBack = resolveStackBack(navigation);
   const topInset = useScreenTopInset();
-  const baseFoods = useMemo(() => {
-    const merged = [...DEFAULT_FOOD_CATALOG, ...mockFoods];
-    const seen = new Set<string>();
-    return merged.filter(item => {
-      const key = item.name.trim().toLowerCase();
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
-  }, []);
+  const baseFoods = useMemo(() => DEFAULT_FOOD_CATALOG, []);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredFoods, setFilteredFoods] = useState<FoodItem[]>(baseFoods);
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
@@ -344,8 +170,8 @@ const NutritionScreen = ({navigation}: any) => {
       return out;
     };
 
-    let mockBase = [...baseFoods];
-    mockBase = applyCommonFilters(mockBase);
+    let catalogBase = [...baseFoods];
+    catalogBase = applyCommonFilters(catalogBase);
 
     const matchesQuery = (food: FoodItem, needle: string) => {
       const n = needle.toLowerCase();
@@ -358,8 +184,8 @@ const NutritionScreen = ({navigation}: any) => {
     let combined: FoodItem[] = [];
 
     if (q.length >= 2) {
-      const mockMatching = mockBase.filter(food => matchesQuery(food, q));
-      combined = [...remoteFoods, ...mockMatching];
+      const localMatching = catalogBase.filter(food => matchesQuery(food, q));
+      combined = [...remoteFoods, ...localMatching];
       const seen = new Set<string>();
       combined = combined.filter(food => {
         if (seen.has(food.id)) {
@@ -394,14 +220,14 @@ const NutritionScreen = ({navigation}: any) => {
         }
       }
     } else if (q.length === 1) {
-      combined = mockBase.filter(food => matchesQuery(food, q));
+      combined = catalogBase.filter(food => matchesQuery(food, q));
     } else {
       // Curated starter list for quick add flow when user opens Nutrition.
       const starter = STARTER_FOOD_ORDER.map(name =>
-        mockBase.find(food => food.name === name),
+        catalogBase.find(food => food.name === name),
       ).filter(Boolean) as FoodItem[];
       const starterIds = new Set(starter.map(item => item.id));
-      const rest = mockBase.filter(item => !starterIds.has(item.id));
+      const rest = catalogBase.filter(item => !starterIds.has(item.id));
       combined = [...starter, ...rest];
     }
 
@@ -480,11 +306,6 @@ const NutritionScreen = ({navigation}: any) => {
   }, [currentPage, totalPages]);
 
 
-  // Context handles state management automatically
-  useEffect(() => {
-    console.log('🔍 NutritionScreen loaded, using context for state');
-  }, []);
-
   useEffect(() => {
     return () => {
       if (quickMessageTimerRef.current) {
@@ -492,10 +313,6 @@ const NutritionScreen = ({navigation}: any) => {
       }
     };
   }, []);
-
-  console.log('🔍 NutritionScreen loaded, using context for state');
-
-  // Context handles all calculations automatically
 
   const showQuickMessage = (message: string) => {
     setQuickMessage(message);
@@ -569,8 +386,6 @@ const NutritionScreen = ({navigation}: any) => {
       updatedAt: new Date(),
     };
 
-    // Add to daily log using context
-    console.log('🍽️ Adding new meal:', newMealEntry.items[0].foodName);
     addMeal(newMealEntry);
     setSelectedFood(null);
     setQuantity('100');

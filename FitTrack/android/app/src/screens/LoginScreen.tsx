@@ -77,7 +77,7 @@ const LoginScreen = ({navigation}: any) => {
       await signInWithCredential(authInstance, googleCredential);
       navigation.replace('Dashboard');
     } catch (error: any) {
-      console.log('Google Sign-In Error:', error);
+      console.warn('Google Sign-In Error:', error);
       if (error?.code === statusCodes.SIGN_IN_CANCELLED) {
         return;
       }

@@ -278,7 +278,6 @@ export class ExportService {
           mimeType = 'application/json';
           break;
         case 'pdf':
-          // For PDF, we'll generate HTML and let the system handle conversion
           content = await this.generateHTMLReport(nutritionData, options);
           filename = `nutrition_report_${dateRange}.html`;
           mimeType = 'text/html';
