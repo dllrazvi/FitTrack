@@ -1,128 +1,234 @@
-# FitTrack — Context-Aware Mobile App (Thesis)
+# FitTrack
 
-## Overview
+**Development of a Context-Aware Mobile Application for Personalized Fitness and Nutrition**
 
-This repository contains the **full source code and thesis materials** for **FitTrack**, a **cross-platform mobile application** developed as my **Bachelor’s thesis** at **Babeș-Bolyai University (UBB), Romania**.
+Bachelor's Thesis · Babeș-Bolyai University (UBB), Faculty of Mathematics and Computer Science
 
-FitTrack brings together **workout planning**, **nutrition tracking**, **meal planning**, and **community-oriented motivation** in one coherent product experience. The app is built with **React Native** and **TypeScript**, uses **Firebase** for authentication and cloud data, and integrates **public fitness and nutrition APIs** where practical so the product stays usable without proprietary datasets.
-
-**Author:** Bolchis Răzvan · **Supervisor:** Assoc. Prof. PhD. Zsigmond Imre
+**Author:** Răzvan Bolchis  
+**Supervisor:** Assoc. Prof. PhD. Zsigmond Imre
 
 ---
 
-## Technologies Used
+## Overview
 
-- **Mobile framework:** React Native, React
-- **Language:** TypeScript (application logic), JavaScript (ecosystem / tooling)
-- **Navigation:** React Navigation (native stack)
-- **State & persistence:** React Context API, Async Storage
-- **Backend / cloud:** Firebase Authentication, Cloud Firestore, Firebase Storage
-- **Auth providers:** Google Sign-In (integrated with Firebase auth flows)
-- **UI & motion:** React Native Reanimated, Gesture Handler, Safe Area Context, Screens
-- **Graphics & media:** React Native SVG (+ svg-transformer), Image Picker, Video, Share, FS
-- **Health & device:** Google Fit integration (platform-dependent permissions)
-- **Remote data:** REST consumption — e.g. **wger** exercise catalog, **Open Food Facts** search
-- **Android engineering:** Gradle, Kotlin (native / host integration), Google Services plugin
-- **iOS engineering:** Swift / Xcode-oriented RN host project (as maintained in-repo)
-- **Tooling & quality:** Metro, Babel, ESLint, Prettier, Jest, Node.js ≥ 18, Git
+FitTrack is a cross-platform mobile application developed as my Bachelor's thesis, designed to bring together workout planning, nutrition tracking, meal planning, and community engagement within a single mobile platform.
+
+Built with **React Native** and **TypeScript**, the application uses **Firebase** for authentication and cloud synchronization while integrating public REST APIs to provide exercise and nutrition data. Instead of treating fitness, nutrition, and social interaction as separate applications, FitTrack combines them into a unified experience where all modules share the same user profile and cloud-backed data model.
+
+---
+
+## Key Highlights
+
+- Cross-platform mobile application for Android and iOS
+- React Native + TypeScript architecture
+- Firebase Authentication, Cloud Firestore and Cloud Storage
+- Workout, Nutrition, Meal Plans, Dashboard and Community modules
+- Public REST API integrations for exercise and nutrition data
+- Developed individually as a Bachelor's thesis project
+
+---
+
+## Technology Stack
+
+| Category | Technologies |
+|-----------|--------------|
+| **Frontend** | React Native, React, TypeScript |
+| **Navigation** | React Navigation |
+| **State Management** | React Context API, AsyncStorage |
+| **Backend & Cloud** | Firebase Authentication, Cloud Firestore, Firebase Storage |
+| **Authentication** | Email/Password, Google Sign-In |
+| **UI** | React Native SVG, Reanimated, Gesture Handler, Safe Area Context |
+| **Media** | Image Picker, Video, Share |
+| **External APIs** | Exercise Catalog APIs, USDA FoodData Central, Open Food Facts |
+| **Tooling** | Jest, ESLint, Prettier, Metro, Babel, Git |
+
+---
+
+## Architecture
+
+FitTrack follows a modular architecture where each feature is implemented independently while sharing a common authentication layer, cloud data model, and reusable service layer.
+
+React Context manages shared application state, while Firebase provides authentication, persistence, and real-time synchronization across all modules.
+
+<p align="center">
+<img src="FitTrack/android/screenshots/Arhitecture.png" width="90%">
+</p>
+
+<p align="center">
+<img src="FitTrack/android/screenshots/FitTrack_Firestore_ERD.png" width="90%">
+</p>
 
 ---
 
 ## Features
 
-### Dashboard & cross-module overview
-- Consolidated **home surface** that connects training, nutrition, and community signals into a glanceable summary.
-- Support for **step-style indicators** where the platform grants **activity recognition** permissions.
+### Dashboard
+
+- Daily activity overview
+- Workout and nutrition progress
+- Quick access to all application modules
+- Activity statistics and notifications
+
+---
 
 ### Workouts
-- **Exercise discovery** and session-oriented flows grounded in a **remote exercise catalog** (notably **wger** in this codebase).
-- Routines and workout screens structured for **browsing → selecting → executing** without losing context.
+
+- Exercise discovery through public APIs
+- Interactive muscle-group selection
+- Workout routines and guided sessions
+- Weekly planner and workout history
+
+---
 
 ### Nutrition
-- **Food logging** with macro-oriented workflows suited to daily adherence.
-- **Open Food Facts**-backed search to reduce friction when logging real products.
 
-### Meal plans
-- **Structured meal templates** that connect higher-level planning with day-to-day nutrition tracking.
+- Food search across multiple data sources
+- Daily nutrition journal
+- Macronutrient tracking
+- Daily goal monitoring
+
+---
+
+### Meal Plans
+
+- Built-in meal templates
+- Goal-oriented nutrition plans
+- Automatic macro target synchronization
+
+---
 
 ### Community
-- **Challenges**, optional **feed-style sharing**, **badges**, and **leaderboards** oriented toward consistency and participation rather than one-off spikes.
 
-### Profile & account layer
-- User identity, preferences, and configuration surfaces that tie the modules into a single account experience.
+- Social feed
+- Fitness challenges
+- Achievement badges
+- Leaderboards
+- Notifications
+
+---
+
+### Profile
+
+- User profile management
+- Workout and nutrition statistics
+- Theme preferences
+- Data export
 
 ---
 
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/01-dashboard.png" alt="Dashboard" width="32%" />
-  <img src="docs/screenshots/02-workout.png" alt="Workouts" width="32%" />
-  <img src="docs/screenshots/03-nutrition.png" alt="Nutrition" width="32%" />
+<img src="FitTrack/android/screenshots/DashboardPrimary.png" width="31%">
+<img src="FitTrack/android/screenshots/WorkoutExerciseList.png" width="31%">
+<img src="FitTrack/android/screenshots/NutritionJurnal.png" width="31%">
 </p>
-
-<p align="center"><em>Dashboard · Workouts · Nutrition</em></p>
 
 <p align="center">
-  <img src="docs/screenshots/04-meal-plans.png" alt="Meal plans" width="32%" />
-  <img src="docs/screenshots/05-community.png" alt="Community" width="32%" />
-  <img src="docs/screenshots/06-profile.png" alt="Profile" width="32%" />
+Dashboard • Workouts • Nutrition
 </p>
 
-<p align="center"><em>Meal plans · Community · Profile</em></p>
+<p align="center">
+<img src="FitTrack/android/screenshots/MealPlansDashboard.png" width="31%">
+<img src="FitTrack/android/screenshots/CommunityFeed.png" width="31%">
+<img src="FitTrack/android/screenshots/ProfilePrimary.png" width="31%">
+</p>
 
-Add images under `docs/screenshots/` and align filenames with the paths above (or update the paths). You can also point screenshots to existing assets under `android/screenshots/` if you prefer.
+<p align="center">
+Meal Plans • Community • Profile
+</p>
 
 ---
 
-## Run locally
+## Project Structure
 
-Prerequisites: [React Native environment setup](https://reactnative.dev/docs/set-up-your-environment), Node.js **≥ 18**, Android Studio (for Android) and/or Xcode (for iOS).
+```text
+FitTrack/
+│
+├── android/
+├── ios/
+├── src/
+│   ├── contexts/
+│   ├── services/
+│   ├── backend/
+│   ├── config/
+│   ├── models/
+│   ├── theme/
+│   └── utils/
+│
+├── App.tsx
+├── firestore.rules
+├── storage.rules
+└── package.json
+```
+
+---
+
+## Running the Project
+
+### Requirements
+
+- Node.js 18+
+- React Native development environment
+- Android Studio and/or Xcode
+
+### Installation
 
 ```bash
 npm install
-npm start          # Metro, in one terminal
-npm run android    # or: npm run ios
+npm start
+npm run android
+# or
+npm run ios
 ```
 
-Place your Firebase **`google-services.json`** under `android/app/` and **`GoogleService-Info.plist`** under the iOS app target as required by Firebase (these files are gitignored in this public repository).
+Firebase configuration files are intentionally excluded from the repository and must be supplied separately.
 
 ---
 
-## Documentation
+## Repository Contents
 
-- **Thesis PDF:** [Licenta_BolchisRazvan.pdf](./Licenta_BolchisRazvan.pdf) *(rename the link if your file name differs)*  
-- **Diagrams / appendices:** place alongside the PDF or under `docs/` as you prefer.
-
----
-
-## My role & scope
-
-This is an **individual thesis project**. I owned:
-
-- End-to-end **mobile product implementation** (screens, navigation, UX flows).
-- **Firebase-backed** persistence and authentication wiring.
-- **Integration design** for third-party catalogs (exercise + food search).
-- **Android-focused** build and permission configuration for fitness-related capabilities.
-- **Thesis writing** and repository packaging (code + documentation).
+- Complete React Native source code
+- Firebase security rules
+- Architecture diagrams
+- Bachelor's thesis document
+- Application screenshots
 
 ---
 
-## What I learned
+## Development Experience
 
-- Structuring a **multi-module RN app** without turning screens into isolated silos.
-- Practical **Firebase** usage (Auth / Firestore / Storage) in a mobile client.
-- **REST integration** patterns for public APIs (rate limits, partial failures, UX fallbacks).
-- **Platform realities**: permissions, Google Fit availability, and “graceful degradation” in UI.
-- Shipping a **portfolio-ready** repository: readable README, screenshots, and reproducible setup.
+FitTrack was developed entirely as an individual Bachelor's thesis project. Beyond implementing the application itself, the project required designing a scalable architecture, integrating multiple external services, and maintaining a consistent user experience across several independent modules.
+
+Throughout the project I was responsible for:
+
+- Designing the application architecture and Firestore data model.
+- Implementing all mobile screens, navigation flows, and reusable UI components.
+- Integrating Firebase Authentication, Cloud Firestore, Cloud Storage, and external REST APIs.
+- Designing modular services and shared state management using React Context.
+- Writing the thesis documentation and preparing the project for public release.
 
 ---
 
-## Author
+## What I Learned
 
-**Bolchis Răzvan**  
-Bachelor’s Thesis, Computer Science — English Program  
-Babeș-Bolyai University (UBB), Romania  
-Supervisor: **Assoc. Prof. PhD. Zsigmond Imre**
+Developing FitTrack provided practical experience far beyond implementing application features. Some of the most valuable lessons included:
 
-Repository: [https://github.com/dllrazvi/FitTrack](https://github.com/dllrazvi/FitTrack)
+- Designing a modular architecture that remains maintainable as the application grows.
+- Managing shared state and cloud synchronization across multiple independent modules.
+- Integrating third-party REST APIs while handling failures and inconsistent external data gracefully.
+- Building responsive mobile interfaces that balance usability with performance.
+- Delivering a complete software project, from architecture and implementation to documentation and presentation.
+
+---
+
+## Future Work
+
+Several improvements are planned for future versions of FitTrack:
+
+- AI-assisted workout and nutrition recommendations
+- Computer vision for exercise form analysis
+- Extended wearable integrations
+- Barcode-based food recognition
+- Improved offline synchronization
+- More advanced community and social features
